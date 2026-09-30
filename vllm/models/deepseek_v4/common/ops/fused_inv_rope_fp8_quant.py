@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import Tuple
 """Fused inverse RoPE + block-scaled FP8 quantization kernel for DeepseekV4 attention.
 
 Output scale format is pre-transformed (MN-major TMA-aligned; FP32 on SM90,
@@ -450,7 +452,7 @@ def _fused_inv_rope_fp8_quant_kernel_impl(
     d: int,
     scale_inner: int,
     quantize: bool,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     scale_dtype = torch.int32 if tma_aligned_scales else torch.float32
     out_buf = torch.empty(
         (n_groups, num_tokens, d),

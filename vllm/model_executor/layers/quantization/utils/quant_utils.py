@@ -224,7 +224,7 @@ kStatic128BlockScale = ScaleDesc(torch.float32, True, GroupShape(128, 128))
 kFp8Static128BlockSym = QuantKey(FP8_DTYPE, kStatic128BlockScale, symmetric=True)
 kFp8Static128BlockE8M0Sym = QuantKey(
     FP8_DTYPE,
-    ScaleDesc(torch.float8_e8m0fnu, True, GroupShape(128, 128)),
+    ScaleDesc(getattr(torch, "float8_e8m0fnu", None), True, GroupShape(128, 128)),
     symmetric=True,
 )
 

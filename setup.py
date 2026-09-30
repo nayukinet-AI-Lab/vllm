@@ -1017,8 +1017,8 @@ class precompiled_wheel_utils:
                     exact_members.update(
                         {
                             "vllm/_C.abi3.so",
-                            "vllm/_C_stable_libtorch.abi3.so",
-                            "vllm/_moe_C_stable_libtorch.abi3.so",
+                            # "vllm/_C_stable_libtorch.abi3.so",
+                            # "vllm/_moe_C_stable_libtorch.abi3.so",
                             "vllm/_qutlass_C.abi3.so",
                             "vllm/_flashmla_C.abi3.so",
                             "vllm/_flashmla_extension_C.abi3.so",
@@ -1027,7 +1027,7 @@ class precompiled_wheel_utils:
                             "vllm/_deepselect_C.abi3.so",
                             "vllm/vllm_flash_attn/_vllm_fa2_C.abi3.so",
                             "vllm/vllm_flash_attn/_vllm_fa3_C.abi3.so",
-                            "vllm/cumem_allocator.abi3.so",
+                            # "vllm/cumem_allocator.abi3.so",
                             "vllm/spinloop.abi3.so",
                             "vllm/fs_io_C.abi3.so",
                             # ROCm-specific libraries
@@ -1367,7 +1367,7 @@ def get_requirements() -> list[str]:
 ext_modules = []
 
 if _is_cuda() or _is_hip():
-    ext_modules.append(CMakeExtension(name="vllm.cumem_allocator"))
+    # ext_modules.append(CMakeExtension(name="vllm.cumem_allocator"))
     # Optional since this doesn't get built (produce an .so file). This is just
     # copying the relevant .py files from the source repository.
     ext_modules.append(CMakeExtension(name="vllm.triton_kernels", optional=True))
@@ -1380,45 +1380,64 @@ if _is_hip():
     ext_modules.append(CMakeExtension(name="vllm._rocm_C"))
 
 if _is_cuda():
-    ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa2_C"))
-    if USE_PRECOMPILED_EXTENSIONS or (
-        CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3")
-    ):
-        # FA3 requires CUDA 12.3 or later
-        ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa3_C"))
-    # FA4 CuteDSL - Python-only component for FA4's cute DSL support
-    # Optional since this doesn't produce a .so file, just copies Python files
-    ext_modules.append(
-        CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa4_cutedsl_C", optional=True)
-    )
-    if USE_PRECOMPILED_EXTENSIONS or (
-        CUDA_HOME and get_nvcc_cuda_version() >= Version("12.9")
-    ):
-        # FlashMLA requires CUDA 12.9 or later
-        # Optional since this doesn't get built (produce an .so file) when
-        # not targeting a hopper system
-        ext_modules.append(CMakeExtension(name="vllm._flashmla_C", optional=True))
+    def _is_ampere_or_newer() -> bool:
+        arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
+        if arch_list:
+            for arch in arch_list.split():
+                try:
+                    major = float(arch.split(".")[0])
+                    if major >= 8.0:
+                        return True
+                except ValueError:
+                    pass
+            return False
+        if torch.cuda.is_available():
+            try:
+                return torch.cuda.get_device_capability()[0] >= 8
+            except Exception:
+                pass
+        return True
+
+    if _is_ampere_or_newer():
+        ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa2_C"))
+        if USE_PRECOMPILED_EXTENSIONS or (
+            CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3")
+        ):
+            # FA3 requires CUDA 12.3 or later
+            ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa3_C"))
+        # FA4 CuteDSL - Python-only component for FA4's cute DSL support
+        # Optional since this doesn't produce a .so file, just copies Python files
         ext_modules.append(
-            CMakeExtension(name="vllm._flashmla_extension_C", optional=True)
+            CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa4_cutedsl_C", optional=True)
         )
-        # DeepSelect requires CUDA 12.9 or later (SM100a/SM103a only)
-        # Optional since it won't build on unsupported architectures
-        ext_modules.append(CMakeExtension(name="vllm._deepselect_C", optional=True))
-    if USE_PRECOMPILED_EXTENSIONS or (
-        CUDA_HOME and get_nvcc_cuda_version() >= Version("12.0")
-    ):
-        ext_modules.append(CMakeExtension(name="vllm._flashkda_C", optional=True))
-    if envs.VLLM_USE_PRECOMPILED or (
-        CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3")
-    ):
-        # DeepGEMM requires CUDA 12.3+ (SM90/SM100)
-        # Optional since it won't build on unsupported architectures
-        ext_modules.append(CMakeExtension(name="vllm._deep_gemm_C", optional=True))
-        ext_modules.append(CMakeExtension(name="vllm._qutlass_C", optional=True))
-    # fmha_sm100 is a Python/CuTe-DSL package installed into vllm.third_party.
-    ext_modules.append(CMakeExtension(name="vllm.fmha_sm100", optional=True))
-    # tml-fa4 is copied into an isolated vllm.third_party package.
-    ext_modules.append(CMakeExtension(name="vllm.tml_fa4", optional=True))
+        if USE_PRECOMPILED_EXTENSIONS or (
+            CUDA_HOME and get_nvcc_cuda_version() >= Version("12.9")
+        ):
+            # FlashMLA requires CUDA 12.9 or later
+            # Optional since this doesn't get built (produce an .so file) when
+            # not targeting a hopper system
+            ext_modules.append(CMakeExtension(name="vllm._flashmla_C", optional=True))
+            ext_modules.append(
+                CMakeExtension(name="vllm._flashmla_extension_C", optional=True)
+            )
+            # DeepSelect requires CUDA 12.9 or later (SM100a/SM103a only)
+            # Optional since it won't build on unsupported architectures
+            ext_modules.append(CMakeExtension(name="vllm._deepselect_C", optional=True))
+        if USE_PRECOMPILED_EXTENSIONS or (
+            CUDA_HOME and get_nvcc_cuda_version() >= Version("12.0")
+        ):
+            ext_modules.append(CMakeExtension(name="vllm._flashkda_C", optional=True))
+        if envs.VLLM_USE_PRECOMPILED or (
+            CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3")
+        ):
+            # DeepGEMM requires CUDA 12.3+ (SM90/SM100)
+            # Optional since it won't build on unsupported architectures
+            ext_modules.append(CMakeExtension(name="vllm._deep_gemm_C", optional=True))
+            ext_modules.append(CMakeExtension(name="vllm._qutlass_C", optional=True))
+        # fmha_sm100 is a Python/CuTe-DSL package installed into vllm.third_party.
+        ext_modules.append(CMakeExtension(name="vllm.fmha_sm100", optional=True))
+        # tml-fa4 is copied into an isolated vllm.third_party package.
+        ext_modules.append(CMakeExtension(name="vllm.tml_fa4", optional=True))
 
 if _is_cpu():
     import platform
@@ -1434,8 +1453,9 @@ if _build_custom_ops():
     if _is_hip():
         ext_modules.append(CMakeExtension(name="vllm._C"))
     if _is_cuda() or _is_hip():
-        ext_modules.append(CMakeExtension(name="vllm._C_stable_libtorch"))
-        ext_modules.append(CMakeExtension(name="vllm._moe_C_stable_libtorch"))
+        # ext_modules.append(CMakeExtension(name="vllm._C_stable_libtorch"))
+        # ext_modules.append(CMakeExtension(name="vllm._moe_C_stable_libtorch"))
+        pass
 
 package_data = {
     "vllm": [

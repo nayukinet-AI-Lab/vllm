@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import Tuple
 import torch
 
 from vllm.utils.math_utils import cdiv
@@ -85,7 +87,7 @@ def mhc_pre_delayed_tilelang(
     x: torch.Tensor | None = None,
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Run mHC pre with a carried pre-mix and return the next pre-mix.
 
     Args:
@@ -283,7 +285,7 @@ def mhc_fused_post_pre_delayed_tilelang(
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 1e-6,
     capture_aux: bool = False,
-) -> tuple[
+) -> Tuple[
     torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
 ]:
     """Run one mHC post block followed by the next delayed mHC pre block.
@@ -552,7 +554,7 @@ def mhc_pre_tilelang(
     n_splits: int = 1,
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Forward pass for mHC pre block.
 
     Args:
@@ -828,7 +830,7 @@ def mhc_fused_post_pre_tilelang(
     tile_n: int = 1,
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 1e-6,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Run one MHC post block followed by the next MHC pre block.
 
     When ``norm_weight`` is provided, the layer_input_cur output is the

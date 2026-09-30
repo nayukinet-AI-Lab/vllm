@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import Tuple
 """Fused Qwen4Exp PLE kernels.
 
 N-gram IDs hash each suffix with
@@ -248,7 +250,7 @@ def _ple_gate(
     norm_query_w: torch.Tensor,
     norm_conv_w: torch.Tensor,
     eps: float,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     num_tokens = hidden.shape[0]
     h = value.shape[-1]
     hc = hidden.shape[-1] // h

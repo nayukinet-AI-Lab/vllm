@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from __future__ import annotations
+from typing import Tuple
 import torch
 
 from vllm.utils.torch_utils import direct_register_custom_op
@@ -188,7 +190,7 @@ def _mxfp8_e4m3_quantize_impl(
     x: torch.Tensor,
     is_sf_swizzled_layout: bool = False,
     alignment: int = 0,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     from vllm.platforms import current_platform
     from vllm.utils.flashinfer import has_flashinfer
 

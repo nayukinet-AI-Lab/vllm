@@ -333,7 +333,7 @@ class Fp8LinearMethod(LinearMethodBase):
                 input_size_per_partition,
                 self.weight_block_size,
                 weight_loader,
-                scale_dtype=(torch.float8_e8m0fnu if self.is_scale_e8m0 else None),
+                scale_dtype=(getattr(torch, "float8_e8m0fnu", None) if self.is_scale_e8m0 else None),
             )
             # The weight_scale_inv name is intentional for deepseekv3
             layer.register_parameter("weight_scale_inv", scale)

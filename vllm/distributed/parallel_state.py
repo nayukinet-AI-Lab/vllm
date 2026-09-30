@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from math import gcd
 from multiprocessing import shared_memory
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, List, Protocol
 from unittest.mock import patch
 
 import torch

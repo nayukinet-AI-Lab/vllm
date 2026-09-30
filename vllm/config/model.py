@@ -2428,6 +2428,17 @@ def _get_and_verify_dtype(
     else:
         raise ValueError(f"Unknown dtype: {dtype}")
 
+    if torch_dtype == torch.bfloat16:
+        from vllm.platforms import current_platform
+        if (hasattr(current_platform, "has_device_capability")
+                and not current_platform.has_device_capability(80)):
+            logger.warning(
+                "Bfloat16 is requested/configured, but "
+                "device compute capability < 8.0. "
+                "Automatically falling back from bfloat16 to float16."
+            )
+            torch_dtype = torch.float16
+
     _check_valid_dtype(model_type, torch_dtype)
 
     if torch_dtype != config_dtype:

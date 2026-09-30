@@ -537,10 +537,11 @@ class Mxfp4MoEMethod(FusedMoEMethodBase):
     def _encode_mxfp4_weight_scale(loaded_weight: torch.Tensor) -> torch.Tensor:
         if loaded_weight.dtype == torch.uint8:
             return loaded_weight
-        if loaded_weight.dtype == torch.float8_e8m0fnu:
+        e8m0 = getattr(torch, "float8_e8m0fnu", None)
+        if e8m0 is not None and loaded_weight.dtype == e8m0:
             return loaded_weight.view(torch.uint8)
-        if loaded_weight.is_floating_point():
-            return loaded_weight.to(torch.float8_e8m0fnu).view(torch.uint8)
+        if loaded_weight.is_floating_point() and e8m0 is not None:
+            return loaded_weight.to(e8m0).view(torch.uint8)
         return loaded_weight
 
     @staticmethod

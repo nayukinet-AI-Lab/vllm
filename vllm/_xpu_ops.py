@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from __future__ import annotations
+from typing import Tuple
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -231,7 +233,7 @@ def _xpu_ops_deepseek_scaling_rope_impl(
     cos_sin_cache: torch.Tensor | None,
     rotary_dim: int,
     is_neox_style: bool,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     assert key is not None
     return torch.ops._xpu_C.deepseek_scaling_rope(
         positions, query, key, offsets, cos_sin_cache, rotary_dim, is_neox_style
@@ -511,7 +513,7 @@ def _xpu_deepseek_fused_indexer_q_rope_mxfp4_impl(
 
 def _xpu_mxfp8_quantize_impl(
     x: torch.Tensor, dtype: torch.dtype | None = None
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     MXFP8_BLOCK_SIZE = 32
     assert x.shape[-1] % MXFP8_BLOCK_SIZE == 0
     if dtype is not None:
@@ -562,7 +564,7 @@ def _xpu_mxfp8_quantize_fake(
 
 def _xpu_mxfp4_quantize_impl(
     x: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     MXFP4_BLOCK_SIZE = 32
     eps = 1e-10
     assert x.ndim == 2, "input must be 2-D"

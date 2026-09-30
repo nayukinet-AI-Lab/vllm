@@ -365,9 +365,9 @@ class Platform:
         """Import any platform-specific C kernels."""
         try:
             import vllm._C  # noqa: F401
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError) as e:
             logger.warning_once("Failed to import from vllm._C: %s", repr(e))
-        with contextlib.suppress(ImportError):
+        with contextlib.suppress(ImportError, ModuleNotFoundError):
             import vllm._moe_C_stable_libtorch  # noqa: F401
 
     @classmethod

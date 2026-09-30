@@ -9,17 +9,33 @@ from dataclasses import dataclass, field, replace
 
 from openai.types.responses import ToolChoiceFunction
 from pydantic import TypeAdapter, ValidationError
-from xgrammar import Grammar, StructuralTag
-from xgrammar.structural_tag import (
-    ConstStringFormat,
-    Format,
-    GrammarFormat,
-    JSONSchemaFormat,
-    OrFormat,
-    RegexFormat,
-    TagFormat,
-    TriggeredTagsFormat,
-)
+
+try:
+    from xgrammar import Grammar, StructuralTag
+    from xgrammar.structural_tag import (
+        ConstStringFormat,
+        Format,
+        GrammarFormat,
+        JSONSchemaFormat,
+        OrFormat,
+        RegexFormat,
+        TagFormat,
+        TriggeredTagsFormat,
+    )
+except (ImportError, OSError):
+    try:
+        from xgrammar import Grammar
+    except (ImportError, OSError):
+        Grammar = None  # type: ignore[assignment]
+    StructuralTag = None  # type: ignore[assignment]
+    ConstStringFormat = None  # type: ignore[assignment]
+    Format = None  # type: ignore[assignment]
+    GrammarFormat = None  # type: ignore[assignment]
+    JSONSchemaFormat = None  # type: ignore[assignment]
+    OrFormat = None  # type: ignore[assignment]
+    RegexFormat = None  # type: ignore[assignment]
+    TagFormat = None  # type: ignore[assignment]
+    TriggeredTagsFormat = None  # type: ignore[assignment]
 
 from vllm.entrypoints.chat_utils import (
     get_tool_call_id_type,

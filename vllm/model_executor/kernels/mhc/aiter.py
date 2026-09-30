@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import Tuple
 import torch
 
 from vllm.utils.torch_utils import direct_register_custom_op
@@ -18,7 +20,7 @@ def mhc_pre_aiter(
     n_splits: int = 1,
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 0.0,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Forward pass for mHC pre block.
 
     Args:
@@ -118,7 +120,7 @@ def mhc_pre_delayed_aiter(
     post_layer_mix: torch.Tensor | None = None,
     comb_res_mix: torch.Tensor | None = None,
     residual_out: torch.Tensor | None = None,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """MHC pre with the pre-mix carried in from the previous sublayer.
 
     Matches ``mhc_pre_delayed_torch``: the stream collapse uses *pre_mix*
@@ -224,7 +226,7 @@ def mhc_fused_post_pre_delayed_rms_norm_aiter(
     norm_weight: torch.Tensor,
     norm_eps: float,
     residual_out: torch.Tensor | None,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """:func:`mhc_pre_delayed_aiter` with the RMSNorm of the collapse folded in:
     ``layer_input`` comes back normalised with ``norm_weight`` / ``norm_eps``."""
     from vllm._aiter_ops import rocm_aiter_ops
@@ -325,7 +327,7 @@ def mhc_fused_post_pre_aiter(
     tile_n: int = 1,
     norm_weight: torch.Tensor | None = None,
     norm_eps: float = 0.0,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Fused mHC post + next mHC pre on ROCm via AITER.
 
     Returns residual_cur, post_mix_cur, comb_mix_cur, layer_input_cur.

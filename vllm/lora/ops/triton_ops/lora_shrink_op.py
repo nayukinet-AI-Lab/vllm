@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import List
 """Based on:
 Chen, L., Ye, Z., Wu, Y., Zhuo, D., Ceze, L., & Krishnamurthy, A. (2023).
 Punica: Multi-Tenant LoRA Serving.
@@ -130,7 +132,7 @@ def _lora_shrink_kernel(
 @torch.inference_mode()
 def _lora_shrink(
     inputs: torch.Tensor,  #  shape [num_tokens, hidden_size]
-    lora_a_weights: list[torch.Tensor],  # shape [num_loras, lora_rank, hidden_size]
+    lora_a_weights: List[torch.Tensor],  # shape [num_loras, lora_rank, hidden_size]
     output_tensor: torch.Tensor,  # shape [num_slices, num_tokens, lora_rank]
     token_lora_mapping: torch.Tensor,  # shape [num_tokens]
     token_indices_sorted_by_lora_ids: torch.Tensor,  # shape [num_tokens]

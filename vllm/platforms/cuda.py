@@ -20,7 +20,8 @@ from torch.distributed.distributed_c10d import is_nccl_available
 from typing_extensions import ParamSpec
 
 # import custom ops, trigger op registration
-import vllm._C_stable_libtorch  # noqa
+with contextlib.suppress(ImportError, ModuleNotFoundError):
+    import vllm._C_stable_libtorch  # noqa
 
 with contextlib.suppress(ImportError):
     import vllm._qutlass_C  # noqa
@@ -165,7 +166,8 @@ def _get_backend_priorities(
                 AttentionBackendEnum.TURBOQUANT,
             ]
         else:
-            return [
+            # Filter out non-supported backends on CC < 8.0 (e.g. V100)
+            base_priorities = [
                 *(
                     [AttentionBackendEnum.TRITON_FLASH_ATTN]
                     if device_capability.major == 9 and use_mm_prefix
@@ -177,6 +179,15 @@ def _get_backend_priorities(
                 AttentionBackendEnum.FLEX_ATTENTION,
                 AttentionBackendEnum.TURBOQUANT,
             ]
+            if device_capability < DeviceCapability(8, 0):
+                base_priorities = [
+                    b for b in base_priorities
+                    if b not in (
+                        AttentionBackendEnum.FLASH_ATTN,
+                        AttentionBackendEnum.FLASHINFER,
+                    )
+                ]
+            return base_priorities
 
 
 def _backend_cls_path(backend_cls: type[AttentionBackend]) -> str:
@@ -238,13 +249,13 @@ class CudaPlatformBase(Platform):
         """Import CUDA kernel extensions (_C_stable_libtorch, optional _qutlass_C)."""
         try:
             import vllm._C_stable_libtorch  # noqa: F401
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError) as e:
             logger.warning_once(
                 "Failed to import from vllm._C_stable_libtorch: %s", repr(e)
             )
-        with contextlib.suppress(ImportError):
+        with contextlib.suppress(ImportError, ModuleNotFoundError):
             import vllm._moe_C_stable_libtorch  # noqa: F401
-        with contextlib.suppress(ImportError):
+        with contextlib.suppress(ImportError, ModuleNotFoundError):
             import vllm._qutlass_C  # noqa: F401
 
     @classmethod
@@ -665,12 +676,12 @@ class CudaPlatformBase(Platform):
                     version_str = capability.as_version_str()
                     compute_str = f"has compute capability {version_str}"
 
-                raise ValueError(
-                    "Bfloat16 is only supported on GPUs "
-                    "with compute capability of at least 8.0. "
-                    f"Your {gpu_name} GPU {compute_str}. "
-                    "You can use float16 instead by explicitly setting the "
-                    "`dtype` flag in CLI, for example: --dtype=half."
+                logger.warning(
+                    "Bfloat16 is not supported on GPUs with compute capability "
+                    "below 8.0. Your %s GPU %s. Automatically falling back "
+                    "from bfloat16 to float16.",
+                    gpu_name,
+                    compute_str,
                 )
 
     @classmethod

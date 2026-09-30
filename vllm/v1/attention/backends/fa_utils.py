@@ -21,11 +21,21 @@ _ROCM_FLASH_ATTN_AVAILABLE = False
 
 if current_platform.is_cuda():
     from vllm._custom_ops import reshape_and_cache_flash
-    from vllm.vllm_flash_attn import (  # type: ignore[attr-defined]
-        compile_flash_attn_varlen_func_from_specs,
-        flash_attn_varlen_func,
-        get_scheduler_metadata,
-    )
+    try:
+        from vllm.vllm_flash_attn import (  # type: ignore[attr-defined]
+            compile_flash_attn_varlen_func_from_specs,
+            flash_attn_varlen_func,
+            get_scheduler_metadata,
+        )
+    except (ImportError, Exception) as e:
+        logger.warning_once(
+            "Failed to import vllm_flash_attn on CUDA device: %s. "
+            "Using fallback/dummy functions.",
+            e,
+        )
+        compile_flash_attn_varlen_func_from_specs = None  # type: ignore[assignment]
+        flash_attn_varlen_func = None  # type: ignore[assignment]
+        get_scheduler_metadata = None  # type: ignore[assignment]
 
 elif current_platform.is_xpu():
     from vllm import _custom_ops as ops

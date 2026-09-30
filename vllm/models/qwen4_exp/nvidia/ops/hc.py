@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+from __future__ import annotations
+from typing import Tuple
 """NVIDIA HyperConnection kernels for Qwen4Exp."""
 
 import torch
@@ -352,7 +354,7 @@ def _hc_combine_norm(
     norm_weight: torch.Tensor,
     eps: float,
     hc_count: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     N, DIM = residual.shape
     assert DIM % hc_count == 0
     hc_dim = DIM // hc_count

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from __future__ import annotations
+from typing import Tuple
 from functools import partial
 
 import torch
@@ -216,7 +218,7 @@ def _minimax_qk_norm_fusion(
     tp_world: int,
     eps: float,
     workspace: torch.Tensor | None,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     assert qkv.ndim == 2
     num_tokens = qkv.shape[0]
     if (

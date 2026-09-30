@@ -3,6 +3,8 @@
 
 # Supports FP-Quant compression, see https://arxiv.org/abs/2509.23202
 
+from __future__ import annotations
+from typing import Tuple
 from typing import Any, Literal, cast
 
 import torch
@@ -230,7 +232,7 @@ class FPQuantLinearMethod(LinearMethodBase):
 
 def fused_quantize_mx(
     x_flat: torch.Tensor, hadamard_matrix: torch.Tensor, forward_method: str
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     return fusedQuantizeMx(
         x_flat,
         hadamard_matrix,
@@ -247,7 +249,7 @@ def fused_quantize_mx_fake(x_flat, hadamard_matrix, forward_method):
         x_flat.size(0), x_flat.size(1) // 2, dtype=torch.uint8, device=x_flat.device
     )
     xh_e8m0 = torch.empty(
-        padded_rows, padded_cols, dtype=torch.float8_e8m0fnu, device=x_flat.device
+        padded_rows, padded_cols, dtype=getattr(torch, "float8_e8m0fnu", None), device=x_flat.device
     )
 
     return xh_e2m1, xh_e8m0
@@ -272,8 +274,8 @@ def matmul_mxf4_bf16(
     return matmul_mxf4_bf16_tn(
         x,
         w,
-        to_blocked(xs, backend="triton").view(torch.float8_e8m0fnu),
-        to_blocked(ws, backend="triton").view(torch.float8_e8m0fnu),
+        to_blocked(xs, backend="triton").view(getattr(torch, "float8_e8m0fnu", None)),
+        to_blocked(ws, backend="triton").view(getattr(torch, "float8_e8m0fnu", None)),
         alpha,
     )
 
@@ -293,7 +295,7 @@ direct_register_custom_op(
 
 def fused_quantize_nv(
     x_flat: torch.Tensor, hadamard_matrix: torch.Tensor, global_scale: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     return fusedQuantizeNv(x_flat, hadamard_matrix, global_scale)
 
 

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from __future__ import annotations
+from typing import List
 import torch
 
 from vllm.distributed import (
@@ -1168,7 +1170,7 @@ def _fused_moe_lora_shrink(
     a_intermediate_cache1: torch.Tensor,
     # (num_slices, num_tokens, top_k_num, max_lora_rank)
     qcurr_hidden_states: torch.Tensor,  # (num_tokens, K,)
-    lora_a_stacked: list[
+    lora_a_stacked: List[
         torch.Tensor
     ],  # [(max_loras, num_experts, max_lora_rank, K,),...]
     topk_weights: torch.Tensor,  # (num_tokens, top_k_num)
@@ -1284,7 +1286,7 @@ def _fused_moe_lora_shrink(
 def _fused_moe_lora_expand(
     output: torch.Tensor,  # (num_tokens, top_k_num, N*len(lora_a_stacked),)
     a_intermediate_cache1: torch.Tensor,  # (num_slices, M, top_k_num, max_lora_rank)
-    lora_b_stacked: list[
+    lora_b_stacked: List[
         torch.Tensor
     ],  # [(max_loras, num_experts, max_lora_rank, K,),...]
     topk_weights: torch.Tensor,  # (num_tokens, top_k_num)
@@ -1420,10 +1422,10 @@ def _fused_moe_lora_expand(
 def _fused_moe_lora(
     output: torch.Tensor,  # (num_tokens, top_k_num, N*len(lora_a_stacked),)
     qcurr_hidden_states: torch.Tensor,  # (num_tokens, K,)
-    lora_a_stacked: list[
+    lora_a_stacked: List[
         torch.Tensor
     ],  # [(max_loras, num_experts, max_lora_rank, K,),...]
-    lora_b_stacked: list[
+    lora_b_stacked: List[
         torch.Tensor
     ],  # [(max_loras, num_experts, N, max_lora_rank,),...]
     topk_weights: torch.Tensor,  # (num_tokens, top_k_num)

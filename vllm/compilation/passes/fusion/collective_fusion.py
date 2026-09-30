@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from __future__ import annotations
 from collections.abc import Callable
+from typing import List
 from contextlib import suppress
 
 import torch
