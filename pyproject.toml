@@ -7,7 +7,7 @@ requires = [
     "setuptools>=77.0.3,<81.0.0",
     "setuptools-scm>=8.0",
     "setuptools-rust>=1.9.0",
-    "torch == 2.13.0",
+    "torch == 2.6.0+cu124",
     "wheel",
     "jinja2",
 ]
@@ -257,6 +257,7 @@ WHT = "WHT"
 CANN = "CANN"
 
 [tool.uv]
+find-links = ["https://download.pytorch.org/whl/cu124"]
 no-build-isolation-package = ["torch"]
 # vLLM depends on oss-harmony, a fork that ships the same `openai_harmony`
 # module without downloading tiktoken vocabularies at runtime. Installing

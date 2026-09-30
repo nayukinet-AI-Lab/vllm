@@ -734,7 +734,9 @@ def moe_gptq_gemm_rdna3(
 
 # cutlass
 def cutlass_scaled_mm_supports_fp4(cuda_device_capability: int) -> bool:
-    return torch.ops._C.cutlass_scaled_mm_supports_fp4(cuda_device_capability)
+    if hasattr(torch.ops._C, "cutlass_scaled_mm_supports_fp4"):
+        return torch.ops._C.cutlass_scaled_mm_supports_fp4(cuda_device_capability)
+    return False
 
 
 def mxfp4_experts_quant_supported(cuda_device_capability: int) -> bool:
@@ -761,11 +763,15 @@ def cutlass_scaled_fp4_mm(
 
 
 def cutlass_scaled_mm_supports_fp8(cuda_device_capability: int) -> bool:
-    return torch.ops._C.cutlass_scaled_mm_supports_fp8(cuda_device_capability)
+    if hasattr(torch.ops._C, "cutlass_scaled_mm_supports_fp8"):
+        return torch.ops._C.cutlass_scaled_mm_supports_fp8(cuda_device_capability)
+    return False
 
 
 def cutlass_scaled_mm_supports_block_fp8(cuda_device_capability: int) -> bool:
-    return torch.ops._C.cutlass_scaled_mm_supports_block_fp8(cuda_device_capability)
+    if hasattr(torch.ops._C, "cutlass_scaled_mm_supports_block_fp8"):
+        return torch.ops._C.cutlass_scaled_mm_supports_block_fp8(cuda_device_capability)
+    return False
 
 
 def cutlass_scaled_mm(

@@ -190,7 +190,7 @@ def _mxfp8_e4m3_quantize_impl(
     x: torch.Tensor,
     is_sf_swizzled_layout: bool = False,
     alignment: int = 0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     from vllm.platforms import current_platform
     from vllm.utils.flashinfer import has_flashinfer
 
