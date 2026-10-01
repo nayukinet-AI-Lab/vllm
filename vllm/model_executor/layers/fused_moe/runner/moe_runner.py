@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from __future__ import annotations
-from typing import Tuple
+
 from collections.abc import Callable, Iterable
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 import torch
 import torch.nn.functional as F
@@ -60,7 +60,7 @@ logger = init_logger(__name__)
 
 def register_layer_for_moe_forward_op(
     vllm_config: VllmConfig,
-    layer: "MoERunner",
+    layer: MoERunner,
 ):
     # For smuggling this layer into the fused moe custom op
     prefix = layer.layer_name
@@ -119,9 +119,9 @@ def _resolve_layer_name(layer_name: str | LayerName) -> str:
 def _moe_forward(
     hidden_states: torch.Tensor,
     router_logits: torch.Tensor,
-    shared_experts_input: torch.Tensor | None,
-    input_ids: torch.Tensor | None,
-    layer_name: _layer_name_type,
+    shared_experts_input: Optional[torch.Tensor],
+    input_ids: Optional[torch.Tensor],
+    layer_name: str,
     hidden_dim_unpadded: int,
 ) -> torch.Tensor:
     layer = get_layer_from_name(_resolve_layer_name(layer_name))
@@ -139,9 +139,9 @@ def _moe_forward(
 def _moe_forward_fake(
     hidden_states: torch.Tensor,
     router_logits: torch.Tensor,
-    shared_experts_input: torch.Tensor | None,
-    input_ids: torch.Tensor | None,
-    layer_name: _layer_name_type,
+    shared_experts_input: Optional[torch.Tensor],
+    input_ids: Optional[torch.Tensor],
+    layer_name: str,
     hidden_dim_unpadded: int,
 ) -> torch.Tensor:
     # `hidden_dim_unpadded > 0` only on the TRT-LLM MXFP4 path, where the
@@ -156,11 +156,11 @@ def _moe_forward_fake(
 def _moe_forward_shared(
     hidden_states: torch.Tensor,
     router_logits: torch.Tensor,
-    shared_experts_input: torch.Tensor | None,
-    input_ids: torch.Tensor | None,
-    layer_name: _layer_name_type,
+    shared_experts_input: Optional[torch.Tensor],
+    input_ids: Optional[torch.Tensor],
+    layer_name: str,
     hidden_dim_unpadded: int,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     layer = get_layer_from_name(_resolve_layer_name(layer_name))
     return cast(
         tuple[torch.Tensor, torch.Tensor],
@@ -176,9 +176,9 @@ def _moe_forward_shared(
 def _moe_forward_shared_fake(
     hidden_states: torch.Tensor,
     router_logits: torch.Tensor,
-    shared_experts_input: torch.Tensor | None,
-    input_ids: torch.Tensor | None,
-    layer_name: _layer_name_type,
+    shared_experts_input: Optional[torch.Tensor],
+    input_ids: Optional[torch.Tensor],
+    layer_name: str,
     hidden_dim_unpadded: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # `fused_out`: see `_moe_forward_fake` for hidden_dim_unpadded semantics.

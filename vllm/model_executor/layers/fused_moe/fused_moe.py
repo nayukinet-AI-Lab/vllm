@@ -5,7 +5,7 @@
 import functools
 import json
 import os
-from typing import Any, List
+from typing import Any, List, Optional
 
 import torch
 
@@ -1460,19 +1460,19 @@ def fused_experts_op(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
-    ocp_mx_scheme: str | None = None,
+    ocp_mx_scheme: Optional[str] = None,
     per_channel_quant: bool = False,
     global_num_experts: int = -1,
-    expert_map: torch.Tensor | None = None,
-    w1_scale: torch.Tensor | None = None,
-    w2_scale: torch.Tensor | None = None,
-    w1_zp: torch.Tensor | None = None,
-    w2_zp: torch.Tensor | None = None,
-    a1_scale: torch.Tensor | None = None,
-    a2_scale: torch.Tensor | None = None,
-    block_shape: list[int] | None = None,
-    w1_bias: torch.Tensor | None = None,
-    w2_bias: torch.Tensor | None = None,
+    expert_map: Optional[torch.Tensor] = None,
+    w1_scale: Optional[torch.Tensor] = None,
+    w2_scale: Optional[torch.Tensor] = None,
+    w1_zp: Optional[torch.Tensor] = None,
+    w2_zp: Optional[torch.Tensor] = None,
+    a1_scale: Optional[torch.Tensor] = None,
+    a2_scale: Optional[torch.Tensor] = None,
+    block_shape: Optional[List[int]] = None,
+    w1_bias: Optional[torch.Tensor] = None,
+    w2_bias: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     return fused_experts_impl(
         hidden_states,
@@ -1514,19 +1514,19 @@ def fused_experts_op_fake(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
-    ocp_mx_scheme: str | None = None,
+    ocp_mx_scheme: Optional[str] = None,
     per_channel_quant: bool = False,
     global_num_experts: int = -1,
-    expert_map: torch.Tensor | None = None,
-    w1_scale: torch.Tensor | None = None,
-    w2_scale: torch.Tensor | None = None,
-    w1_zp: torch.Tensor | None = None,
-    w2_zp: torch.Tensor | None = None,
-    a1_scale: torch.Tensor | None = None,
-    a2_scale: torch.Tensor | None = None,
-    block_shape: list[int] | None = None,
-    w1_bias: torch.Tensor | None = None,
-    w2_bias: torch.Tensor | None = None,
+    expert_map: Optional[torch.Tensor] = None,
+    w1_scale: Optional[torch.Tensor] = None,
+    w2_scale: Optional[torch.Tensor] = None,
+    w1_zp: Optional[torch.Tensor] = None,
+    w2_zp: Optional[torch.Tensor] = None,
+    a1_scale: Optional[torch.Tensor] = None,
+    a2_scale: Optional[torch.Tensor] = None,
+    block_shape: Optional[List[int]] = None,
+    w1_bias: Optional[torch.Tensor] = None,
+    w2_bias: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     return torch.empty_like(hidden_states)
 
