@@ -1,8 +1,9 @@
+from __future__ import annotations
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Gates zentorch CPU linear dispatch on platform/op availability."""
 
-from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING

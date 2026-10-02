@@ -1,3 +1,5 @@
+from typing import List
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
@@ -92,7 +94,7 @@ def _deepgemm_mxfp8_bmm_fake(
     x_scale: torch.Tensor,
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
-    recipe: list[int],
+    recipe: List[int],
 ) -> torch.Tensor:
     return torch.empty(
         (x.shape[0], weight.shape[0], weight.shape[1]),
@@ -106,7 +108,7 @@ def _deepgemm_mxfp8_bmm(
     x_scale: torch.Tensor,
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
-    recipe: list[int],
+    recipe: List[int],
 ) -> torch.Tensor:
     output = torch.empty(
         (x.shape[0], weight.shape[0], weight.shape[1]),

@@ -1,3 +1,4 @@
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Hybrid W4A16 kernel: Triton for prefill, HIP skinny for decode.

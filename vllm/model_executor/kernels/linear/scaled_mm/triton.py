@@ -1,3 +1,5 @@
+from typing import List
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
@@ -188,7 +190,7 @@ def _w8a8_triton_block_scaled_mm_func(
     weight: torch.Tensor,
     x_scale: torch.Tensor,
     weight_scale: torch.Tensor,
-    block_size: list[int],
+    block_size: List[int],
     output_dtype: torch.dtype,
 ) -> torch.Tensor:
     from vllm.model_executor.layers.quantization.utils.fp8_utils import (
@@ -205,7 +207,7 @@ def _w8a8_triton_block_scaled_mm_fake(
     weight: torch.Tensor,
     x_scale: torch.Tensor,
     weight_scale: torch.Tensor,
-    block_size: list[int],
+    block_size: List[int],
     output_dtype: torch.dtype,
 ) -> torch.Tensor:
     return torch.empty(

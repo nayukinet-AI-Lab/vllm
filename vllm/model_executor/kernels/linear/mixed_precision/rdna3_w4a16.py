@@ -1,3 +1,4 @@
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """W4A16 GPTQ kernel for AMD RDNA3 (gfx1100) — fp16 + bf16.

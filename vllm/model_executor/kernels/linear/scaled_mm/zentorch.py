@@ -1,3 +1,4 @@
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Zentorch dynamic-symmetric W8A8 int8 linear kernel for AMD Zen CPUs.

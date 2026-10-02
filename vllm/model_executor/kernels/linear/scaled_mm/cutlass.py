@@ -1,3 +1,4 @@
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
@@ -332,7 +333,7 @@ def cutlass_scaled_mm(
     B: torch.Tensor,
     As: torch.Tensor,
     Bs: torch.Tensor,
-    block_size: list[int],
+    block_size: List[int],
     output_dtype: torch.dtype = torch.float16,
 ) -> torch.Tensor:
     return ops.cutlass_scaled_mm(

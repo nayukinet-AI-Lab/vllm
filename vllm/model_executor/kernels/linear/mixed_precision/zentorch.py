@@ -1,3 +1,4 @@
+from typing import List
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Zentorch W4A16 GPTQ weight-only-quantized linear kernel for AMD Zen CPUs.
