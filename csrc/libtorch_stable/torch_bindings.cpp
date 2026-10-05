@@ -784,8 +784,13 @@ STABLE_TORCH_LIBRARY_IMPL(_C, CUDA, ops) {
   ops.impl("merge_attn_states", TORCH_BOX(&merge_attn_states));
 
   // Layernorm kernels (shared CUDA/ROCm)
+  // On sm_70-only builds the V100 adapter (csrc/v100_adapter/) provides ATen
+  // fallbacks for these ops, so their native CUDA registration is gated out to
+  // avoid a duplicate CUDA kernel for the same op.
+#ifndef VLLM_V100_ADAPTER
   ops.impl("rms_norm", TORCH_BOX(&rms_norm));
   ops.impl("fused_add_rms_norm", TORCH_BOX(&fused_add_rms_norm));
+#endif
 
   // Layernorm-quant kernels (shared CUDA/ROCm)
   ops.impl("rms_norm_static_fp8_quant", TORCH_BOX(&rms_norm_static_fp8_quant));
@@ -866,10 +871,16 @@ STABLE_TORCH_LIBRARY_IMPL(_C, CUDA, ops) {
            TORCH_BOX(&persistent_masked_m_silu_mul_quant));
   ops.impl("weak_ref_tensor", TORCH_BOX(&weak_ref_tensor));
   ops.impl("silu_and_mul_quant", TORCH_BOX(&silu_and_mul_quant));
+  // sm_70 fallbacks for these activations live in csrc/v100_adapter/; see the
+  // rms_norm note above for why the native CUDA registration is gated out.
+#ifndef VLLM_V100_ADAPTER
   ops.impl("silu_and_mul", TORCH_BOX(&silu_and_mul));
+#endif
   ops.impl("mul_and_silu", TORCH_BOX(&mul_and_silu));
+#ifndef VLLM_V100_ADAPTER
   ops.impl("gelu_and_mul", TORCH_BOX(&gelu_and_mul));
   ops.impl("gelu_tanh_and_mul", TORCH_BOX(&gelu_tanh_and_mul));
+#endif
   ops.impl("fatrelu_and_mul", TORCH_BOX(&fatrelu_and_mul));
   ops.impl("swigluoai_and_mul", TORCH_BOX(&swigluoai_and_mul));
   ops.impl("situ_and_mul", TORCH_BOX(&situ_and_mul));
@@ -880,7 +891,9 @@ STABLE_TORCH_LIBRARY_IMPL(_C, CUDA, ops) {
   ops.impl("gelu_fast", TORCH_BOX(&gelu_fast));
   ops.impl("gelu_quick", TORCH_BOX(&gelu_quick));
   ops.impl("relu_squared", TORCH_BOX(&relu_squared));
+#ifndef VLLM_V100_ADAPTER
   ops.impl("silu_and_mul_with_clamp", TORCH_BOX(&silu_and_mul_clamp));
+#endif
 
   // INT8 quantization kernels
   ops.impl("static_scaled_int8_quant", TORCH_BOX(&static_scaled_int8_quant));

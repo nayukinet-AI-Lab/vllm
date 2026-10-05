@@ -456,6 +456,44 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
     "csrc/libtorch_stable/fused_deepseek_v4_qnorm_rope_kv_insert_kernel.cu"
     "csrc/libtorch_stable/fused_kimi_k3_mla_key_concat_kv_cache_kernel.cu")
 
+  #
+  # V100 (sm_70) C++ adapter.
+  #
+  # When the CUDA build targets only pre-Ampere architectures (all CC < 8.0,
+  # e.g. TORCH_CUDA_ARCH_LIST="7.0"), swap the sm_70-missing custom ops for the
+  # ATen-native fallbacks in csrc/v100_adapter/ and compile out their native
+  # CUDA registrations (see the matching #ifndef VLLM_V100_ADAPTER guards in
+  # csrc/libtorch_stable/torch_bindings.cpp). This keeps exactly one CUDA kernel
+  # registered per op and leaves CC >= 8.0 builds untouched. See
+  # docs/v100_fallback_archtecture/ and the v100-csrc-adapter rule.
+  set(VLLM_V100_ADAPTER_ENABLE OFF)
+  if(VLLM_GPU_LANG STREQUAL "CUDA" AND CUDA_ARCHS)
+    set(_vllm_has_sm80plus OFF)
+    foreach(_vllm_arch ${CUDA_ARCHS})
+      string(REGEX MATCH "^([0-9]+)" _vllm_arch_major "${_vllm_arch}")
+      if(_vllm_arch_major GREATER_EQUAL 8)
+        set(_vllm_has_sm80plus ON)
+      endif()
+    endforeach()
+    if(NOT _vllm_has_sm80plus)
+      set(VLLM_V100_ADAPTER_ENABLE ON)
+    endif()
+  endif()
+
+  if(VLLM_V100_ADAPTER_ENABLE)
+    message(STATUS
+      "V100 adapter: enabling sm_70 ATen fallbacks (-DVLLM_V100_ADAPTER)")
+    list(APPEND VLLM_STABLE_EXT_SRC "csrc/v100_adapter/v100_fallback_ops.cpp")
+    # Apply the macro to both the adapter (to activate its registrations) and the
+    # native bindings (to gate out the colliding registrations). Scoped to these
+    # sources so it is independent of whether the extension uses the CUDA- or
+    # CXX-language compile flags.
+    set_source_files_properties(
+      "csrc/v100_adapter/v100_fallback_ops.cpp"
+      "csrc/libtorch_stable/torch_bindings.cpp"
+      PROPERTIES COMPILE_DEFINITIONS "VLLM_V100_ADAPTER")
+  endif()
+
   if(VLLM_GPU_LANG STREQUAL "CUDA" AND
      DEFINED CMAKE_CUDA_COMPILER_VERSION AND
      CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
@@ -1197,57 +1235,83 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
 
   message(STATUS "Enabling C_stable extension.")
   list(REMOVE_DUPLICATES VLLM_STABLE_EXT_SRC)
-  # define_extension_target(
-  #   _C_stable_libtorch
-  #   DESTINATION vllm
-  #   LANGUAGE ${VLLM_GPU_LANG}
-  #   SOURCES ${VLLM_STABLE_EXT_SRC}
-  #   COMPILE_FLAGS ${VLLM_GPU_FLAGS}
-  #   ARCHITECTURES ${VLLM_GPU_ARCHES}
-  #   INCLUDE_DIRECTORIES ${CUTLASS_INCLUDE_DIR} ${CUTLASS_TOOLS_UTIL_INCLUDE_DIR}
-  #   USE_SABI 3
-  #   WITH_SOABI)
+
+  # sm_70-only source exclusion hook.
+  #
+  # On a Volta-only build (all CUDA_ARCHS < 8.0) the heavy sm_80+/sm_90+ families
+  # (machete, cutlass scaled_mm/moe, marlin bf16/fp8, fp4, w4a8, ...) are already
+  # excluded by their `cuda_archs_loose_intersection` gates above, and the sm_80+
+  # external projects (deepgemm, fmha_sm100, flashmla, flashkda, qutlass, tml_fa4,
+  # vllm-flash-attn) are gated by `_HAS_AMPERE_OR_NEWER` further below. Those
+  # arch-gated .cu files also self-register their ops, so excluding them never
+  # leaves a dangling `ops.impl(...)` in torch_bindings.cpp.
+  #
+  # This hook is for the remaining case: an unconditionally-listed base source
+  # that still fails to compile for sm_70 (discovered during the first
+  # `TORCH_CUDA_ARCH_LIST="7.0"` build). Add its path to
+  # VLLM_SM70_EXCLUDED_SRCS below. IMPORTANT: if that source's op is registered
+  # centrally in csrc/libtorch_stable/torch_bindings.cpp (not inside its own
+  # .cu), also gate that `ops.impl(...)` with `#ifndef VLLM_V100_ADAPTER` to
+  # avoid an undefined-symbol link error (same pattern as the V100 adapter).
+  # Mirrors the ROCm `list(REMOVE_ITEM VLLM_ROCM_EXT_SRC ...)` precedent below.
+  set(VLLM_SM70_EXCLUDED_SRCS "")
+  if(VLLM_V100_ADAPTER_ENABLE AND VLLM_SM70_EXCLUDED_SRCS)
+    message(STATUS
+      "V100 adapter: excluding sm_80+-only sources: ${VLLM_SM70_EXCLUDED_SRCS}")
+    list(REMOVE_ITEM VLLM_STABLE_EXT_SRC ${VLLM_SM70_EXCLUDED_SRCS})
+  endif()
+
+  define_extension_target(
+    _C_stable_libtorch
+    DESTINATION vllm
+    LANGUAGE ${VLLM_GPU_LANG}
+    SOURCES ${VLLM_STABLE_EXT_SRC}
+    COMPILE_FLAGS ${VLLM_GPU_FLAGS}
+    ARCHITECTURES ${VLLM_GPU_ARCHES}
+    INCLUDE_DIRECTORIES ${CUTLASS_INCLUDE_DIR} ${CUTLASS_TOOLS_UTIL_INCLUDE_DIR}
+    USE_SABI 3
+    WITH_SOABI)
 
   # Set TORCH_TARGET_VERSION for stable ABI compatibility.
   # This ensures we only use C-shim APIs available in PyTorch 2.11.
   # _C_stable_libtorch is abi compatible with PyTorch >= TORCH_TARGET_VERSION
   # which is currently set to 2.11.
-  #target_compile_definitions(_C_stable_libtorch PRIVATE
-  #  TORCH_TARGET_VERSION=0x020B000000000000ULL)
+  target_compile_definitions(_C_stable_libtorch PRIVATE
+    TORCH_TARGET_VERSION=0x020B000000000000ULL)
 
   # Needed to use cuda/hip APIs from C-shim
-  #if(VLLM_GPU_LANG STREQUAL "CUDA")
-  #  target_compile_definitions(_C_stable_libtorch PRIVATE USE_CUDA)
-  #  if(COOPERATIVE_TOPK_ARCHS)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_COOPERATIVE_TOPK=1)
-  #  endif()
-  #  if(FUSED_KDA_DECODE_ARCHS)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_FUSED_KDA_DECODE=1)
-  #  endif()
-  #  if(FUSED_GDN_DECODE_ARCHS)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_FUSED_GDN_DECODE=1)
-  #  endif()
-  #  if(KIMI_K3_ATTN_RES_ARCHS)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_KIMI_K3_ATTN_RES=1)
-  #  endif()
-  #  # Needed by CUTLASS kernels
-  #  target_compile_definitions(_C_stable_libtorch PRIVATE
-  #    CUTLASS_ENABLE_DIRECT_CUDA_DRIVER_CALL=1)
-  #elseif(VLLM_GPU_LANG STREQUAL "HIP")
-  #  target_compile_definitions(_C_stable_libtorch PRIVATE USE_ROCM)
-  #  if(FUSED_KDA_DECODE_HIP_SRC)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_FUSED_KDA_DECODE=1)
-  #  endif()
-  #  if(FUSED_KDA_CHUNK_HIP_SRC)
-  #    target_compile_definitions(_C_stable_libtorch PRIVATE
-  #      VLLM_ENABLE_FUSED_KDA_CHUNK=1)
-  #  endif()
-  #endif()
+  if(VLLM_GPU_LANG STREQUAL "CUDA")
+    target_compile_definitions(_C_stable_libtorch PRIVATE USE_CUDA)
+    if(COOPERATIVE_TOPK_ARCHS)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_COOPERATIVE_TOPK=1)
+    endif()
+    if(FUSED_KDA_DECODE_ARCHS)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_FUSED_KDA_DECODE=1)
+    endif()
+    if(FUSED_GDN_DECODE_ARCHS)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_FUSED_GDN_DECODE=1)
+    endif()
+    if(KIMI_K3_ATTN_RES_ARCHS)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_KIMI_K3_ATTN_RES=1)
+    endif()
+    # Needed by CUTLASS kernels
+    target_compile_definitions(_C_stable_libtorch PRIVATE
+      CUTLASS_ENABLE_DIRECT_CUDA_DRIVER_CALL=1)
+  elseif(VLLM_GPU_LANG STREQUAL "HIP")
+    target_compile_definitions(_C_stable_libtorch PRIVATE USE_ROCM)
+    if(FUSED_KDA_DECODE_HIP_SRC)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_FUSED_KDA_DECODE=1)
+    endif()
+    if(FUSED_KDA_CHUNK_HIP_SRC)
+      target_compile_definitions(_C_stable_libtorch PRIVATE
+        VLLM_ENABLE_FUSED_KDA_CHUNK=1)
+    endif()
+  endif()
 
   # On ROCm, _C_stable_libtorch calls raw HIP APIs (e.g. hipGetDevice in
   # get_device_prop()) which must resolve to the same libamdhip64.so that
@@ -1259,14 +1323,14 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
   # If PyTorch doesn't bundle libamdhip64 (built from source against system
   # ROCm), there is only one copy in the process and no action is needed —
   # the HIP compiler already links the system libamdhip64 automatically.
-  #if(VLLM_GPU_LANG STREQUAL "HIP")
-  #  find_library(_STABLE_TORCH_AMDHIP64 amdhip64
-  #    PATHS "${TORCH_INSTALL_PREFIX}/lib" NO_DEFAULT_PATH)
-  #  if(_STABLE_TORCH_AMDHIP64)
-  #    message(STATUS "Found PyTorch-bundled libamdhip64 at ${_STABLE_TORCH_AMDHIP64}")
-  #    target_link_libraries(_C_stable_libtorch PRIVATE ${_STABLE_TORCH_AMDHIP64})
-  #  endif()
-  #endif()
+  if(VLLM_GPU_LANG STREQUAL "HIP")
+    find_library(_STABLE_TORCH_AMDHIP64 amdhip64
+      PATHS "${TORCH_INSTALL_PREFIX}/lib" NO_DEFAULT_PATH)
+    if(_STABLE_TORCH_AMDHIP64)
+      message(STATUS "Found PyTorch-bundled libamdhip64 at ${_STABLE_TORCH_AMDHIP64}")
+      target_link_libraries(_C_stable_libtorch PRIVATE ${_STABLE_TORCH_AMDHIP64})
+    endif()
+  endif()
 endif()
 
 #
@@ -1421,35 +1485,49 @@ if(VLLM_GPU_LANG STREQUAL "CUDA")
   endif()
 endif()
 
-# message(STATUS "Enabling MoE C_stable extension.")
-# define_extension_target(
-#   _moe_C_stable_libtorch
-#   DESTINATION vllm
-#   LANGUAGE ${VLLM_GPU_LANG}
-#   SOURCES ${VLLM_MOE_EXT_SRC}
-#   COMPILE_FLAGS ${VLLM_GPU_FLAGS}
-#   ARCHITECTURES ${VLLM_GPU_ARCHES}
-#   INCLUDE_DIRECTORIES ${CUTLASS_INCLUDE_DIR}
-#   INCLUDE_DIRECTORIES ${CUTLASS_TOOLS_UTIL_INCLUDE_DIR}
-#   USE_SABI 3
-#   WITH_SOABI)
+message(STATUS "Enabling MoE C_stable extension.")
+list(REMOVE_DUPLICATES VLLM_MOE_EXT_SRC)
+
+# sm_70-only source exclusion hook for the MoE extension (see the detailed note
+# on VLLM_STABLE_EXT_SRC above). The Marlin MoE kernels are already arch-gated
+# via MARLIN_MOE_*_ARCHS; the remaining base MoE sources (align/sum, topk,
+# permute, wna16) are arch-agnostic. Add any sm_80+-only straggler surfaced by
+# the first sm_70 build here.
+set(VLLM_SM70_MOE_EXCLUDED_SRCS "")
+if(VLLM_V100_ADAPTER_ENABLE AND VLLM_SM70_MOE_EXCLUDED_SRCS)
+  message(STATUS
+    "V100 adapter: excluding sm_80+-only MoE sources: ${VLLM_SM70_MOE_EXCLUDED_SRCS}")
+  list(REMOVE_ITEM VLLM_MOE_EXT_SRC ${VLLM_SM70_MOE_EXCLUDED_SRCS})
+endif()
+
+define_extension_target(
+  _moe_C_stable_libtorch
+  DESTINATION vllm
+  LANGUAGE ${VLLM_GPU_LANG}
+  SOURCES ${VLLM_MOE_EXT_SRC}
+  COMPILE_FLAGS ${VLLM_GPU_FLAGS}
+  ARCHITECTURES ${VLLM_GPU_ARCHES}
+  INCLUDE_DIRECTORIES ${CUTLASS_INCLUDE_DIR}
+  INCLUDE_DIRECTORIES ${CUTLASS_TOOLS_UTIL_INCLUDE_DIR}
+  USE_SABI 3
+  WITH_SOABI)
 
 # Set TORCH_TARGET_VERSION for stable ABI compatibility.
 # This ensures we only use C-shim APIs available in PyTorch 2.11.
 # _moe_C_stable_libtorch is abi compatible with PyTorch >= TORCH_TARGET_VERSION
 # which is currently set to 2.11.
-#target_compile_definitions(_moe_C_stable_libtorch PRIVATE
-#  TORCH_TARGET_VERSION=0x020B000000000000ULL)
+target_compile_definitions(_moe_C_stable_libtorch PRIVATE
+  TORCH_TARGET_VERSION=0x020B000000000000ULL)
 
 # Needed to use cuda/hip APIs from C-shim
-#if(VLLM_GPU_LANG STREQUAL "CUDA")
-#  target_compile_definitions(_moe_C_stable_libtorch PRIVATE USE_CUDA)
-#  # Needed by CUTLASS kernels
-#  target_compile_definitions(_moe_C_stable_libtorch PRIVATE
-#    CUTLASS_ENABLE_DIRECT_CUDA_DRIVER_CALL=1)
-#elseif(VLLM_GPU_LANG STREQUAL "HIP")
-#  target_compile_definitions(_moe_C_stable_libtorch PRIVATE USE_ROCM)
-#endif()
+if(VLLM_GPU_LANG STREQUAL "CUDA")
+  target_compile_definitions(_moe_C_stable_libtorch PRIVATE USE_CUDA)
+  # Needed by CUTLASS kernels
+  target_compile_definitions(_moe_C_stable_libtorch PRIVATE
+    CUTLASS_ENABLE_DIRECT_CUDA_DRIVER_CALL=1)
+elseif(VLLM_GPU_LANG STREQUAL "HIP")
+  target_compile_definitions(_moe_C_stable_libtorch PRIVATE USE_ROCM)
+endif()
 
 # On ROCm, _moe_C_stable_libtorch calls raw HIP APIs (e.g. hipGetDevice in
 # get_device_prop()) which must resolve to the same libamdhip64.so that
@@ -1461,14 +1539,14 @@ endif()
 # If PyTorch doesn't bundle libamdhip64 (built from source against system
 # ROCm), there is only one copy in the process and no action is needed —
 # the HIP compiler already links the system libamdhip64 automatically.
-#if(VLLM_GPU_LANG STREQUAL "HIP")
-#  find_library(_MOE_STABLE_TORCH_AMDHIP64 amdhip64
-#    PATHS "${TORCH_INSTALL_PREFIX}/lib" NO_DEFAULT_PATH)
-#  if(_MOE_STABLE_TORCH_AMDHIP64)
-#    message(STATUS "Found PyTorch-bundled libamdhip64 for _moe_C_stable_libtorch at ${_MOE_STABLE_TORCH_AMDHIP64}")
-#    target_link_libraries(_moe_C_stable_libtorch PRIVATE ${_MOE_STABLE_TORCH_AMDHIP64})
-#  endif()
-#endif()
+if(VLLM_GPU_LANG STREQUAL "HIP")
+  find_library(_MOE_STABLE_TORCH_AMDHIP64 amdhip64
+    PATHS "${TORCH_INSTALL_PREFIX}/lib" NO_DEFAULT_PATH)
+  if(_MOE_STABLE_TORCH_AMDHIP64)
+    message(STATUS "Found PyTorch-bundled libamdhip64 for _moe_C_stable_libtorch at ${_MOE_STABLE_TORCH_AMDHIP64}")
+    target_link_libraries(_moe_C_stable_libtorch PRIVATE ${_MOE_STABLE_TORCH_AMDHIP64})
+  endif()
+endif()
 
 if(VLLM_GPU_LANG STREQUAL "HIP")
   #
