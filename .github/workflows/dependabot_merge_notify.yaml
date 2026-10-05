@@ -1,0 +1,31 @@
+name: Dependabot merge notification
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notify:
+    # semver-major is merged manually, so no notification is needed for it.
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'semver-major')
+    runs-on: ubuntu-latest
+    steps:
+      # TODO: this is a template step carried over from another project and
+      # is intentionally disabled — it used to @-mention a review team via
+      # `gh pr comment "$PR_URL" --body "@<org>/<review-team> ..."`, but this
+      # fork has no configured review team to mention. Replace this `echo`
+      # with a real `gh pr comment`/notification call once one exists.
+      - name: Notify team of merged Dependabot PR
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          echo "TODO: configure a review-team mention, then notify about merged Dependabot PR: ${PR_URL}"

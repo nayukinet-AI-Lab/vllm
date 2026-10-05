@@ -1,0 +1,100 @@
+name: Dependabot PR setup
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  setup:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          clean: false
+
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98  # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add semver label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          gh label create "semver-patch" --color "0075ca" --description "Semver patch update" --force
+          gh label create "semver-minor" --color "e4e669" --description "Semver minor update" --force
+          gh label create "semver-major" --color "d73a4a" --description "Semver major update" --force
+
+          case "$UPDATE_TYPE" in
+            "version-update:semver-patch")
+              gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/labels" -f 'labels[]=semver-patch'
+              ;;
+            "version-update:semver-minor")
+              gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/labels" -f 'labels[]=semver-minor'
+              ;;
+            "version-update:semver-major")
+              gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/labels" -f 'labels[]=semver-major'
+              ;;
+          esac
+
+      # TODO: this is a template step carried over from another project and
+      # is intentionally disabled — there is no review team configured for
+      # this fork to request as a reviewer yet. Re-enable with a real
+      # `team_reviewers[]=<team-slug>` (or `reviewers[]=<github-username>`,
+      # see the github-cli-pr rule) once one exists.
+      - name: Request reviewer (disabled — no review team configured)
+        if: false
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api -X POST "repos/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" \
+            -f 'team_reviewers[]=<review-team>'
+
+      # Intentionally does NOT auto-approve/auto-merge, even for semver-patch
+      # updates: CLAUDE.md's Contribution Policy requires a human to review
+      # every changed line before merge, with no exception carved out for
+      # dependency bumps. Use the `review-dependabot-pr` skill to risk-review
+      # before merging by hand.
+      - name: Comment for patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" --body "Semver-patch update. Run \`/review-dependabot-pr\` for a risk review before merging by hand."
+
+      # minor: request manual review
+      - name: Comment for minor updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" --body "Semver-minor update. Please check the release notes and run \`/review-dependabot-pr\` for a risk review."
+
+      # major: point at /review-dependabot-pr
+      - name: Comment for major updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" --body "Semver-major update. Run \`/review-dependabot-pr\` for a risk review."

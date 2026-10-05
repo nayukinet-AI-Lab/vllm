@@ -1,0 +1,37 @@
+# SAST (static application security testing) via Semgrep OSS ruleset `p/ci`.
+# Targets insecure patterns in application source (no separate SCA/image-scan
+# workflow exists in this fork to complement it).
+#
+# Gating: `semgrep scan --error` fails the job when Semgrep reports findings, so PRs
+# to main are blocked until issues are fixed or triaged
+# (`.semgrepignore`, inline `nosemgrep`).
+
+name: SAST (Semgrep)
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      options: --user 1000:1000
+      # linux/amd64 digest (ubuntu-latest). Bump tag + digest together when upgrading.
+      image: semgrep/semgrep:1.136.0@sha256:61a7ab31cdab865212ae8ed3ddefc0a51d61ef3b016a63e79848f56241d4586d
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          clean: false
+
+      - name: Semgrep scan (p/ci)
+        run: semgrep scan --config p/ci --error .
