@@ -1261,6 +1261,30 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
     list(REMOVE_ITEM VLLM_STABLE_EXT_SRC ${VLLM_SM70_EXCLUDED_SRCS})
   endif()
 
+  # Stable-ABI availability gate.
+  #
+  # The _C_stable_libtorch / _moe_C_stable_libtorch extensions are written
+  # against the libtorch stable ABI (torch/csrc/stable/*), introduced in
+  # torch 2.7+ (this code targets 2.11). On the torch version this fork pins
+  # (2.6) those headers are absent and the extensions cannot compile at all —
+  # this is independent of sm_70. Build them only when the headers are present,
+  # so a source build (e.g. `setup.py develop`) still succeeds on torch 2.6
+  # (custom C++ ops then come from precompiled artifacts, not a local build).
+  # setup.py applies the same gate to ext_modules so build_ext never requests
+  # these targets when the ABI is unavailable.
+  set(VLLM_STABLE_ABI_AVAILABLE OFF)
+  foreach(_tinc ${TORCH_INCLUDE_DIRS})
+    if(EXISTS "${_tinc}/torch/csrc/stable/library.h")
+      set(VLLM_STABLE_ABI_AVAILABLE ON)
+    endif()
+  endforeach()
+  if(NOT VLLM_STABLE_ABI_AVAILABLE)
+    message(WARNING
+      "Skipping _C_stable_libtorch / _moe_C_stable_libtorch: installed PyTorch "
+      "lacks torch/csrc/stable/* (needs torch >= 2.7).")
+  endif()
+
+  if(VLLM_STABLE_ABI_AVAILABLE)
   define_extension_target(
     _C_stable_libtorch
     DESTINATION vllm
@@ -1331,6 +1355,7 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
       target_link_libraries(_C_stable_libtorch PRIVATE ${_STABLE_TORCH_AMDHIP64})
     endif()
   endif()
+  endif()  # VLLM_STABLE_ABI_AVAILABLE
 endif()
 
 #
@@ -1500,6 +1525,7 @@ if(VLLM_V100_ADAPTER_ENABLE AND VLLM_SM70_MOE_EXCLUDED_SRCS)
   list(REMOVE_ITEM VLLM_MOE_EXT_SRC ${VLLM_SM70_MOE_EXCLUDED_SRCS})
 endif()
 
+if(VLLM_STABLE_ABI_AVAILABLE)
 define_extension_target(
   _moe_C_stable_libtorch
   DESTINATION vllm
@@ -1547,6 +1573,7 @@ if(VLLM_GPU_LANG STREQUAL "HIP")
     target_link_libraries(_moe_C_stable_libtorch PRIVATE ${_MOE_STABLE_TORCH_AMDHIP64})
   endif()
 endif()
+endif()  # VLLM_STABLE_ABI_AVAILABLE
 
 if(VLLM_GPU_LANG STREQUAL "HIP")
   #

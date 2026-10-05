@@ -1206,6 +1206,28 @@ def _build_custom_ops() -> bool:
     return _is_cuda() or _is_hip()
 
 
+def _has_libtorch_stable_abi() -> bool:
+    """True if the installed torch ships the libtorch stable ABI headers.
+
+    The _C_stable_libtorch / _moe_C_stable_libtorch extensions include
+    torch/csrc/stable/*, introduced in torch 2.7+ (this code targets 2.11). On
+    older torch the headers are absent and those extensions cannot be compiled.
+    """
+    try:
+        import torch
+    except ImportError:
+        return False
+    header = os.path.join(
+        os.path.dirname(torch.__file__),
+        "include",
+        "torch",
+        "csrc",
+        "stable",
+        "library.h",
+    )
+    return os.path.exists(header)
+
+
 def get_rocm_version():
     # Get the Rocm version from the ROCM_HOME/bin/librocm-core.so
     # see https://github.com/ROCm/rocm-core/blob/d11f5c20d500f729c393680a01fa902ebf92094b/rocm_version.cpp#L21
@@ -1453,8 +1475,19 @@ if _build_custom_ops():
     if _is_hip():
         ext_modules.append(CMakeExtension(name="vllm._C"))
     if _is_cuda() or _is_hip():
-        ext_modules.append(CMakeExtension(name="vllm._C_stable_libtorch"))
-        ext_modules.append(CMakeExtension(name="vllm._moe_C_stable_libtorch"))
+        # The stable-ABI extensions include torch/csrc/stable/* (introduced in
+        # torch 2.7+; this code targets 2.11). On older torch (e.g. the 2.6 pin)
+        # those headers are absent and the extensions cannot compile, so skip
+        # them to keep source builds working. CMakeLists.txt applies the same
+        # gate (VLLM_STABLE_ABI_AVAILABLE).
+        if _has_libtorch_stable_abi():
+            ext_modules.append(CMakeExtension(name="vllm._C_stable_libtorch"))
+            ext_modules.append(CMakeExtension(name="vllm._moe_C_stable_libtorch"))
+        else:
+            logger.warning(
+                "Skipping _C_stable_libtorch / _moe_C_stable_libtorch: installed "
+                "PyTorch lacks torch/csrc/stable/* (needs torch >= 2.7)."
+            )
 
 package_data = {
     "vllm": [
