@@ -17,6 +17,7 @@ vLLM を動作させるための **C++ アダプタ層**の実装と、ビルド
 - オプ互換性マトリクス: `docs/v100_fallback_archtecture/sm70_op_compatibility_matrix.md`
 - 運用ルール: `.claude/rules/v100-csrc-adapter.md`
 - フォールバック追加手順: `.claude/skills/v100-add-fallback-op/SKILL.md`
+- 開発の裏側を綴った読み物 (Qiita): https://qiita.com/yoheier/items/c1c97c06a5a1a74f43d9
 
 ---
 

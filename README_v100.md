@@ -18,6 +18,7 @@ Related documents:
 - Op compatibility matrix: `docs/v100_fallback_archtecture/sm70_op_compatibility_matrix.md`
 - Operating rule: `.claude/rules/v100-csrc-adapter.md`
 - Fallback-addition procedure: `.claude/skills/v100-add-fallback-op/SKILL.md`
+- Behind-the-scenes write-up (Japanese, Qiita): https://qiita.com/yoheier/items/c1c97c06a5a1a74f43d9
 
 ---
 
