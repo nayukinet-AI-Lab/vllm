@@ -327,7 +327,15 @@ __host__ __device__ __forceinline__ bool is_16byte_aligned(const void* ptr) {
 template <typename packed_t>
 __device__ __forceinline__ float2 cast_to_float2(const packed_t& val) {
   if constexpr (std::is_same_v<packed_t, __nv_bfloat162>) {
+#if !defined(USE_ROCM) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
     return __bfloat1622float2(val);
+#else
+    // CUDA_ARCH < 800 has no packed BF16 intrinsics (Volta/sm_70 has no BF16
+    // hardware support at all). Unreachable: BF16 tensors never reach device
+    // code on CC < 8.0, see the BF16->FP16 fallback in vllm/platforms/cuda.py.
+    __trap();
+    return float2{};
+#endif
   } else if constexpr (std::is_same_v<packed_t, __half2>) {
     return __half22float2(val);
   } else if constexpr (std::is_same_v<packed_t, float2>) {
@@ -338,7 +346,13 @@ __device__ __forceinline__ float2 cast_to_float2(const packed_t& val) {
 template <typename packed_t>
 __device__ __forceinline__ packed_t cast_to_packed(const float2& val) {
   if constexpr (std::is_same_v<packed_t, __nv_bfloat162>) {
+#if !defined(USE_ROCM) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
     return __float22bfloat162_rn(val);
+#else
+    // See cast_to_float2 above: unreachable on CC < 8.0.
+    __trap();
+    return packed_t{};
+#endif
   } else if constexpr (std::is_same_v<packed_t, __half2>) {
     return __float22half2_rn(val);
   } else if constexpr (std::is_same_v<packed_t, float2>) {
@@ -349,8 +363,15 @@ __device__ __forceinline__ packed_t cast_to_packed(const float2& val) {
 template <typename packed_t>
 __device__ __forceinline__ packed_t packed_mul(const packed_t& x,
                                                const packed_t& y) {
-  if constexpr (std::is_same_v<packed_t, __nv_bfloat162> ||
-                std::is_same_v<packed_t, __half2>) {
+  if constexpr (std::is_same_v<packed_t, __nv_bfloat162>) {
+#if !defined(USE_ROCM) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return __hmul2(x, y);
+#else
+    // See cast_to_float2 above: unreachable on CC < 8.0.
+    __trap();
+    return packed_t{};
+#endif
+  } else if constexpr (std::is_same_v<packed_t, __half2>) {
     return __hmul2(x, y);
   } else if constexpr (std::is_same_v<packed_t, float2>) {
     return make_float2(x.x * y.x, x.y * y.y);

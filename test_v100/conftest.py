@@ -72,7 +72,12 @@ def _ensure_ninja_on_path():
 
 
 def _c_ops_already_registered() -> bool:
-    """True if a built vllm._C already exposes the adapter ops (installed mode)."""
+    """True if a built vllm._C_stable_libtorch already exposes the adapter ops
+    (installed mode)."""
+    try:
+        import vllm._C_stable_libtorch  # noqa: F401
+    except ImportError:
+        pass
     try:
         getattr(torch.ops._C, "rms_norm")
         return True

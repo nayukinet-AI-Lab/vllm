@@ -867,10 +867,18 @@ STABLE_TORCH_LIBRARY_IMPL(_C, CUDA, ops) {
 #endif
 
   // Activation kernels (shared CUDA/ROCm)
+  // These two are DeepGEMM-oriented fused FP8-quant kernels, only reachable
+  // from fusion/MoE paths gated on has_device_capability(90) (Hopper+); their
+  // source is excluded from sm_70 builds (VLLM_SM70_EXCLUDED_SRCS), so skip
+  // registering them too.
+#ifndef VLLM_V100_ADAPTER
   ops.impl("persistent_masked_m_silu_mul_quant",
            TORCH_BOX(&persistent_masked_m_silu_mul_quant));
+#endif
   ops.impl("weak_ref_tensor", TORCH_BOX(&weak_ref_tensor));
+#ifndef VLLM_V100_ADAPTER
   ops.impl("silu_and_mul_quant", TORCH_BOX(&silu_and_mul_quant));
+#endif
   // sm_70 fallbacks for these activations live in csrc/v100_adapter/; see the
   // rms_norm note above for why the native CUDA registration is gated out.
 #ifndef VLLM_V100_ADAPTER

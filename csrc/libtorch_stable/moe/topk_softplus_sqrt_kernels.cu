@@ -373,8 +373,15 @@ __launch_bounds__(WARPS_PER_CTA* WARP_SIZE_PARAM) __global__
         int base_idx_f2 = ii * ELTS_PER_LDG / 2;
 #pragma unroll
         for (int jj = 0; jj < ELTS_PER_LDG / 2; ++jj) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
           row_chunk_f2[base_idx_f2 + jj] = __bfloat1622float2(
               *reinterpret_cast<const __nv_bfloat162*>(vec.data + jj * 2));
+#else
+          // No packed BF16 intrinsics below sm_80 (Volta has no BF16
+          // hardware at all); unreachable there, see the BF16->FP16
+          // fallback in vllm/platforms/cuda.py.
+          __trap();
+#endif
         }
       }
     } else {  // ELTS_PER_LDG == 1

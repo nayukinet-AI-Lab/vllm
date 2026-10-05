@@ -1254,7 +1254,15 @@ if(VLLM_GPU_LANG STREQUAL "CUDA" OR VLLM_GPU_LANG STREQUAL "HIP")
   # .cu), also gate that `ops.impl(...)` with `#ifndef VLLM_V100_ADAPTER` to
   # avoid an undefined-symbol link error (same pattern as the V100 adapter).
   # Mirrors the ROCm `list(REMOVE_ITEM VLLM_ROCM_EXT_SRC ...)` precedent below.
-  set(VLLM_SM70_EXCLUDED_SRCS "")
+  set(VLLM_SM70_EXCLUDED_SRCS
+    # DeepGEMM-oriented fused silu+mul+FP8-quant kernels. These use packed
+    # BF16/FP8 hardware intrinsics unconditionally (make_bfloat162,
+    # __bfloat1622float2, bf16<->half conversions) that only exist for
+    # __CUDA_ARCH__ >= 800, and are only ever reached from fusion/MoE paths
+    # that already gate on has_device_capability(90) (Hopper+), so excluding
+    # them changes nothing reachable on sm_70. See the matching
+    # #ifndef VLLM_V100_ADAPTER guards in torch_bindings.cpp.
+    "csrc/libtorch_stable/quantization/activation_kernels.cu")
   if(VLLM_V100_ADAPTER_ENABLE AND VLLM_SM70_EXCLUDED_SRCS)
     message(STATUS
       "V100 adapter: excluding sm_80+-only sources: ${VLLM_SM70_EXCLUDED_SRCS}")

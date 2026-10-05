@@ -19,6 +19,8 @@ This document tracks all C++ custom operators exposed via `torch.ops._C` in vLLM
 | `topk_topp_sampler` (FlashInfer) | sm_80+ | **Unsupported** | ⏳ Planned | Native PyTorch Sampler fallback |
 | `paged_attention_v1/v2` | sm_70+ | **Supported** | — (native) | Native CUDA Kernel (`sm_70` compiled) — must not be touched |
 | `reshape_and_cache` | sm_70+ | **Supported** | — (native) | Native CUDA Kernel (`sm_70` compiled) — must not be touched |
+| `silu_and_mul_quant` | sm_90+ (Hopper, FP8) | **Excluded (source doesn't compile)** | ⛔ None needed | Source (`csrc/libtorch_stable/quantization/activation_kernels.cu`) uses packed BF16/FP8 intrinsics unconditionally; excluded via `VLLM_SM70_EXCLUDED_SRCS`. Only call site (`vllm/model_executor/layers/fusion/fused_act_quant.py`) is gated on `has_device_capability(90)`, so it is never reached on sm_70. |
+| `persistent_masked_m_silu_mul_quant` | sm_90+ (Hopper, DeepGEMM) | **Excluded (source doesn't compile)** | ⛔ None needed | Same source/reasoning as `silu_and_mul_quant`; only used by the DeepGEMM-backed batched MoE path, which requires Hopper+. |
 
 > **Implemented fallbacks** live in `csrc/v100_adapter/v100_fallback_ops.cpp`,
 > registered via `TORCH_LIBRARY_IMPL(_C, CUDA, m)` under the `#ifdef

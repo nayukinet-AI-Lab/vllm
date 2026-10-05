@@ -1,4 +1,4 @@
---extra-index-url https://download.pytorch.org/whl/cu124
+--extra-index-url https://download.pytorch.org/whl/cu126
 
 # Common dependencies
 -r common.txt
@@ -6,10 +6,15 @@
 numba == 0.65.0 # Required for N-gram speculative decoding
 
 # Dependencies for NVIDIA GPUs
-torch==2.6.0+cu124
-torchaudio==2.6.0+cu124
+# torch>=2.9-ish is required for the full libtorch stable ABI surface used by
+# csrc/libtorch_stable/ (torch/csrc/stable/ops.h, torch/headeronly/util/Exception.h
+# only exist from ~2.9+; torch 2.8 only has library.h/tensor.h). PyTorch 2.11
+# also dropped sm_70 (Volta) from its cu12.8/cu12.9 wheels (cuDNN 9.15.1 bump),
+# so cu126 (not cu128/cu13) must be used to keep V100 support.
+torch==2.11.0+cu126
+torchaudio==2.11.0+cu126
 # These must be updated alongside torch
-torchvision==0.21.0+cu124 # Required for phi3v processor. See https://github.com/pytorch/vision?tab=readme-ov-file#installation for corresponding version
+torchvision==0.26.0+cu126 # Required for phi3v processor. See https://github.com/pytorch/vision?tab=readme-ov-file#installation for corresponding version
 torchcodec >= 0.14
 PyNvVideoCodec==2.0.4
 # FlashInfer should be updated together with the Dockerfile
