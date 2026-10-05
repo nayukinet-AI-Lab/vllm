@@ -17,7 +17,7 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       !contains(github.event.pull_request.labels.*.name, 'semver-major')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       # TODO: this is a template step carried over from another project and
       # is intentionally disabled — it used to @-mention a review team via

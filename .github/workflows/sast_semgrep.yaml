@@ -22,7 +22,7 @@ env:
 
 jobs:
   semgrep:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       options: --user 1000:1000
       # linux/amd64 digest (ubuntu-latest). Bump tag + digest together when upgrading.
