@@ -1,6 +1,9 @@
 Please also reference the following rules as needed. The list below is provided in TOON format, and `@` stands for the project root directory.
 
-rules[1]:
+rules[4]:
+  - path: @.claude/rules/git-worktree.md
+  - path: @.claude/rules/git.md
+  - path: @.claude/rules/github-cli-pr.md
   - path: @.claude/rules/v100-csrc-adapter.md
     applyTo[3]: vllm/model_executor/models/**/*.py,csrc/v100_adapter/**/*,docs/v100_fallback_archtecture/**/*
 

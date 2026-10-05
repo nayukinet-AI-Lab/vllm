@@ -237,6 +237,288 @@ process.
 - **V100 / sm_70 compatibility work**: see the `v100-csrc-adapter` rule and the
   `v100-add-fallback-op` skill.
 
+# Git Worktrees (implementation branch workflow)
+
+## Hard rules (NEVER / ALWAYS)
+
+When starting implementation work (feature / bugfix / hotfix):
+
+- **NEVER**: run `git checkout -b <branch>` / `git switch -c <branch>` /
+  `git branch <branch> && git checkout <branch>` in the main working tree.
+- **ALWAYS**: create the branch and its worktree together:
+  `git worktree add -b <branch> ../vllm-worktrees/<dir> origin/main`
+  (use `feature/v100-fp16-patch` as the base ref instead of `origin/main` for V100/Volta work — see [git.md](./git.md)).
+- **ALWAYS**: `cd` into the new worktree immediately, and run every subsequent
+  Edit / Write / Bash command from inside it.
+
+This applies to AI coding agents (Claude Code, Cursor, Codex CLI, etc.) too. Before an agent
+makes its **first** file change via `Edit`/`Write`, it must run the preflight below and
+state the result in the conversation.
+
+## Preflight (run before starting any implementation)
+
+```bash
+# 1. Confirm whether you're in a worktree or the main checkout
+git rev-parse --show-toplevel
+pwd
+
+# 2. List existing worktrees
+git worktree list
+```
+
+Decision:
+
+- `pwd` is under `.../vllm-worktrees/<...>` → OK, proceed with implementation.
+- `pwd` is the main checkout (directly under `.../vllm`) and the task is
+  ticket-driven implementation work → **STOP**. Create a worktree per
+  "Creating a worktree" below, `cd` into it, then resume. Never create or
+  commit to a feature branch in the main checkout without the user's explicit
+  permission.
+
+## Background and rationale
+
+Why worktrees are required here:
+
+- Lets you check `main` (or `feature/v100-fp16-patch`) or switch to another
+  task without disturbing an in-progress build.
+- Several branches of GPU/kernel work can proceed in parallel without one
+  `setup.py develop` / incremental CMake build clobbering another's compiled
+  `.so` artifacts.
+- Each worktree gets its own `.venv`, `build/`, and `.deps/` anyway — the
+  editable install hardcodes the absolute checkout path (`vllm.egg-link`,
+  `easy-install.pth`, the `__editable__` finder, and the venv's own script
+  shebangs all point at the exact path they were created under), so sharing a
+  `.venv` across worktrees silently resolves imports against the wrong tree.
+
+## Placement
+
+Worktrees live **next to** the repo (sibling directory), under
+`../vllm-worktrees/` — placing them inside the repo has side effects on IDE
+indexing, ripgrep, and any bind-mounted Docker build context.
+
+- Path: `../vllm-worktrees/<branch-name>`
+- If the branch name contains a slash, convert it to a hyphen for the
+  directory name
+  - e.g. branch `feature/kv-cache-fix` → directory `feature-kv-cache-fix`
+
+## Creating a worktree
+
+```bash
+# Fetch the latest refs first
+git fetch origin upstream
+
+# Create the branch and worktree together
+# (base off origin/main for general work, or feature/v100-fp16-patch for
+# Volta-specific work)
+git worktree add -b feature/kv-cache-fix \
+  ../vllm-worktrees/feature-kv-cache-fix \
+  origin/main
+
+# Move into the working directory
+cd ../vllm-worktrees/feature-kv-cache-fix
+```
+
+## Per-worktree setup
+
+- **Python environment**: each worktree needs its own `.venv` (see CLAUDE.md
+  "Environment setup"); venvs aren't shareable across worktrees because of the
+  absolute-path issue above.
+  ```bash
+  uv venv --python 3.12
+  source .venv/bin/activate
+  VLLM_USE_PRECOMPILED=1 uv pip install -e . --torch-backend=auto
+  ```
+- **Incremental C++/CUDA builds**: regenerate `CMakeUserPresets.json` per
+  worktree (`python tools/generate_cmake_presets.py`) rather than copying one
+  from another worktree — it embeds the worktree's absolute path. See
+  [`docs/contributing/incremental_build.md`](../../docs/contributing/incremental_build.md).
+  For V100/Volta work, build with `TORCH_CUDA_ARCH_LIST="7.0"` as documented
+  in CLAUDE.md.
+- **Shared caches** (safe to share — both already live under `$HOME`): the
+  Hugging Face cache (`~/.cache/huggingface`) and `uv`'s package cache. No
+  per-worktree copying needed for these.
+- **`.deps/`, `build/`, `bin/`**: not shareable; each worktree builds its own.
+  Expect the first build in a new worktree to take as long as a fresh clone.
+
+## Cleanup
+
+After the PR merges, or to discard the work, remove the worktree:
+
+```bash
+git worktree remove ../vllm-worktrees/feature-kv-cache-fix
+git branch -d feature/kv-cache-fix
+git worktree prune
+```
+
+`git worktree remove` fails if there are uncommitted changes. Only pass
+`--force` when deliberately discarding the work.
+
+## Exceptions (when it's OK to skip the worktree)
+
+Work directly in the main working tree only when **all** of the following hold:
+
+1. The change is a **single-file, ≤5-line** typo/comment/docs fix that doesn't
+   alter code behavior.
+2. The user has **explicitly said worktree-free is fine** in the current
+   conversation.
+3. A Claude Code Agent (`isolation: "worktree"`) is handling it as an
+   **automatically isolated** short-lived task, or is reusing an existing
+   worktree of the same name.
+
+If none of the above applies, create a worktree — even if it "looks like a
+quick fix" or "should only take one commit." When in doubt, create one.
+
+## See also
+
+- Branch naming and commit conventions: [git.md](./git.md)
+- Incremental C++/CUDA build setup:
+  [`docs/contributing/incremental_build.md`](../../docs/contributing/incremental_build.md)
+
+# Git Conventions
+
+## Branch naming
+
+- `feature/<short-description>` — new features/enhancements (e.g. `feature/v100-fp16-patch`). Branch from `main`, PR back to `main`.
+- `bugfix/<short-description>` — bug fixes found before or after a release (e.g. `bugfix/cuda-graph-oom`). Branch from `main`.
+- `hotfix/<short-description>` — urgent fixes for a production-impacting regression requiring an out-of-band patch release. Branch from `main`; cherry-pick onto the relevant `vX.Y.Z` release branch/tag if one exists.
+- Reference the related GitHub issue number in the branch name when one exists (e.g. `bugfix/59286-lora-adapter-name`), but it isn't mandatory — a short descriptive slug is fine on its own.
+
+**This fork specifically:** all V100/Volta (Compute Capability 7.0) compatibility work lives on the long-running `feature/v100-fp16-patch` branch (see CLAUDE.md "Repository context"). Topic branches for that work should branch from, and PR back into, `feature/v100-fp16-patch`, not `main`.
+
+Creating an implementation branch **requires a git worktree** (`git checkout -b` alone is not enough). See [git-worktree.md](./git-worktree.md) for layout and steps.
+
+## Commit messages
+
+vLLM uses a bracketed-tag prefix, not Conventional Commits:
+
+```
+[Category][Subcategory] Description
+```
+
+- Categories mirror the area touched, e.g. `[Bugfix]`, `[Feature]`, `[Kernel]`, `[Platform]`, `[CI]`, `[Doc]`, `[V100]` (this fork's Volta patch set). Stack tags when useful: `[Fix][V100][Build]`.
+- GitHub appends `(#<PR-number>)` automatically on squash-merge — don't add it by hand before the PR exists.
+- Write commit messages in English.
+- Every commit needs a DCO `Signed-off-by:` trailer (see [`docs/contributing/README.md`](../../docs/contributing/README.md) "DCO and Signed-off-by"). AI-assisted commits additionally need a `Co-authored-by:` trailer naming the agent (see CLAUDE.md).
+
+## Staging
+
+Don't use `git add -A`. Stage changed files explicitly.
+
+```bash
+git diff --name-only                  # review changed files
+git add path/to/file1 path/to/file2   # stage explicitly
+```
+
+## PR conventions
+
+- Title: `[Category] Short summary of the change` (same tag convention as commit messages).
+- Base branch: `main` for general changes; `feature/v100-fp16-patch` for V100/Volta work on this fork.
+- Body follows [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md): **Purpose** / **Test Plan** / **Test Result**, plus the "Essential Elements of an Effective PR Description" checklist at the bottom.
+- Link the GitHub issue(s) the PR resolves under **Purpose**, if any.
+- Describe the change as a bullet list when it touches multiple areas.
+- Paste the actual lint/test commands run and their output into **Test Result** — don't tick a checklist box without evidence.
+- For AI-assisted PRs, follow CLAUDE.md's Contribution Policy: a human must review every changed line, duplicate-work checks (`gh issue view`, `gh pr list --search ...`) must be run first, and the description must state that AI assistance was used.
+
+## Syncing `feature/v100-fp16-patch` with upstream `main`
+
+This fork tracks `vllm-project/vllm` through the `upstream` remote. Periodically merge `upstream/main` into `feature/v100-fp16-patch` to pick up upstream fixes without losing the Volta patch history:
+
+```bash
+git fetch upstream
+git checkout feature/v100-fp16-patch
+git merge upstream/main -m "Merge upstream/main into feature/v100-fp16-patch"
+git push origin feature/v100-fp16-patch   # or: git push origin HEAD:for-v100-fp16-patch
+                                           # if the remote branch name differs locally
+```
+
+- **Always merge, never rebase or squash** this branch against upstream: rebasing would rewrite history that downstream users of this fork may already have based work on, and squashing would bury the V100 commit history that CLAUDE.md explicitly calls out as meaningful (e.g. the typing/`from __future__ import annotations` fixes that keep custom-op schema inference working under PyTorch 2.6).
+- Resolve conflicts file by file rather than wholesale, and pay particular attention to `vllm/platforms/cuda.py`, `csrc/v100_adapter/`, and anything matching the `v100-csrc-adapter` rule's `applyTo` globs — those are the files most likely to need genuine V100-specific reconciliation rather than a trivial auto-merge.
+- **Never force-push `main` or `feature/v100-fp16-patch`.** Both are long-lived branches; other clones of this fork (including `private-origin`) may be based on them.
+- **Never click the "Delete branch" button** after merging a PR whose head is `main` or `feature/v100-fp16-patch` — unlike short-lived `feature/<x>`/`bugfix/<x>` topic branches, these are not disposable.
+
+# GitHub CLI — Pull Requests
+
+- When you need PR state / diff / checks / review threads, use **`gh`** rather than guessing from the web UI. Run from the repo root, or pass `--repo OWNER/REPO` explicitly — this fork has three remotes (`origin` = `nayukinet-AI-Lab/vllm`, the public mirror; `private-origin` = `saitama-AI-Lab/vllm`; `upstream` = `vllm-project/vllm`), so don't assume the default remote is the one you want.
+- Common commands: `gh pr list`, `gh pr view <n>`, `gh pr diff <n>`, `gh pr checks <n>`, `gh pr view <n> --comments`, `gh pr view <n> --json title,body,state,url,commits,files`.
+- If `gh` returns an auth/API error in a sandboxed environment, enable credential/network access and retry.
+- See [`docs/contributing/README.md`](../../docs/contributing/README.md) and `docs/contributing/ci/` for the project's full CI/PR process, and CLAUDE.md's Contribution Policy for this fork's duplicate-work and accountability requirements before opening a PR.
+
+## `gh` version
+
+- **Recommended: v2.82.1 or newer** (check with `gh --version`). If older, upgrade per the [GitHub CLI install instructions](https://github.com/cli/cli/blob/trunk/README.md#installation).
+- Following the [Projects (classic) sunset](https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/), `gh` versions below v2.82.1 fail on project-related GraphQL calls (as of 2025-10-22).
+
+## Avoiding the Projects (classic) deprecation
+
+`gh pr edit` / `gh issue edit` can internally reference the GraphQL `projectCards` field, which makes **body/title/label updates fail** with:
+
+```
+GraphQL: Projects (classic) is being deprecated ...
+(repository.pullRequest.projectCards)
+```
+
+even when you never pass `--add-project`.
+
+**Policy:**
+
+- Update a PR/issue's **body or title** via the REST `gh api` **PATCH** endpoint from the start (don't rely on `gh pr edit` / `gh issue edit`).
+- If you hit the error above, **don't retry** — switch immediately to the REST approach below.
+- PR **creation** (`gh pr create`), **viewing** (`view` / `diff` / `checks`), and **commenting** (`gh pr comment`) are unaffected by this; keep using the normal `gh` subcommands for those.
+
+Resolve the repo first (pass `--repo OWNER/REPO` when targeting a different one):
+
+```bash
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+```
+
+### Update a PR body
+
+```bash
+jq -n --rawfile b path/to/body.md '{body: $b}' \
+  | gh api "repos/${REPO}/pulls/<PR_NUMBER>" -X PATCH --input -
+```
+
+Without `jq`:
+
+```bash
+python3 -c 'import json, pathlib; print(json.dumps({"body": pathlib.Path("path/to/body.md").read_text()}))' \
+  | gh api "repos/${REPO}/pulls/<PR_NUMBER>" -X PATCH --input -
+```
+
+### Update a PR title
+
+```bash
+jq -n '{title: "[Bugfix] Short summary of the fix"}' \
+  | gh api "repos/${REPO}/pulls/<PR_NUMBER>" -X PATCH --input -
+```
+
+### Update an issue body (avoiding `gh issue edit`)
+
+```bash
+jq -n --rawfile b path/to/body.md '{body: $b}' \
+  | gh api "repos/${REPO}/issues/<ISSUE_NUMBER>" -X PATCH --input -
+```
+
+### Apply a label (avoiding `gh pr edit --add-label`)
+
+PR numbers and issue numbers share the same namespace.
+
+```bash
+gh api -X POST "repos/${REPO}/issues/<PR_NUMBER>/labels" \
+  -f 'labels[]=needs-rebase'
+```
+
+In `vllm-project/vllm` itself, most labels are applied automatically by Mergify based on changed file paths or PR title (see [`docs/contributing/labels.md`](../../docs/contributing/labels.md)) — manual labeling is mainly needed on this fork's own repos (`origin`/`private-origin`), which don't run that automation.
+
+### Request a reviewer
+
+```bash
+gh api -X POST "repos/${REPO}/pulls/<PR_NUMBER>/requested_reviewers" \
+  -f 'reviewers[]=<github-username>'
+```
+
+Upstream `vllm-project/vllm` assigns reviewers automatically via Mergify; use this manually mostly for PRs opened against `origin`/`private-origin`, which don't have that automation configured.
+
 # V100 (Compute Capability 7.0) C++ Adapter Pattern
 
 Source of truth: `docs/v100_fallback_archtecture/v100_adapter_archtecture.md` and
