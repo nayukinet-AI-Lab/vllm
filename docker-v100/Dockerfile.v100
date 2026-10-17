@@ -1,0 +1,101 @@
+# V100 (sm_70) vLLM image — multi-stage from-source build
+# =======================================================
+#
+# Builds this fork (V100 C++ adapter included) for Volta only and ships it in
+# a slim CUDA runtime image. No host paths are baked in; everything lives under
+# /opt/venv and /opt/vllm-src (build stage only).
+#
+# Pinned to torch==2.11.0+cu126: the only combination that has both sm_70
+# kernels and the libtorch stable-ABI headers the adapter needs
+# (see README_v100.md §5.0).
+#
+# Build (from the repository root):
+#
+#   docker build -f docker-v100/Dockerfile.v100 -t vllm-v100:latest .
+#
+# Build args:
+#   MAX_JOBS   parallel compile jobs (default 4; raise if you have RAM to spare)
+#
+# Run: see docker-v100/compose.yaml. Requires the NVIDIA Container Toolkit on
+# the Docker host (only the driver's libcuda.so.1 is injected at run time).
+
+ARG CUDA_VERSION=12.6.3
+ARG PYTHON_VERSION=3.12
+
+# ---------------------------------------------------------------- build stage
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
+
+ARG PYTHON_VERSION
+ARG MAX_JOBS=4
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python${PYTHON_VERSION} \
+        python${PYTHON_VERSION}-dev \
+        python${PYTHON_VERSION}-venv \
+        git \
+        curl \
+        ca-certificates \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+ENV VIRTUAL_ENV=/opt/venv \
+    UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=300
+RUN uv venv --python ${PYTHON_VERSION} ${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+
+WORKDIR /opt/vllm-src
+
+# Build requirements first so this layer is cached across source edits.
+COPY requirements/build/ requirements/build/
+RUN uv pip install -r requirements/build/cuda.txt \
+        --extra-index-url https://download.pytorch.org/whl/cu126 \
+        --index-strategy unsafe-best-match
+
+COPY . .
+
+# .git is excluded from the context, so the version cannot come from git.
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+v100 \
+    VLLM_VERSION_OVERRIDE=0.0.0+v100 \
+    VLLM_TARGET_DEVICE=cuda \
+    TORCH_CUDA_ARCH_LIST="7.0" \
+    CUDA_HOME=/usr/local/cuda \
+    MAX_JOBS=${MAX_JOBS}
+
+RUN uv pip install . --no-build-isolation \
+        --extra-index-url https://download.pytorch.org/whl/cu126 \
+        --index-strategy unsafe-best-match
+
+# ------------------------------------------------------------- runtime stage
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04 AS runtime
+
+ARG PYTHON_VERSION
+ENV DEBIAN_FRONTEND=noninteractive
+
+# gcc + python-dev: Triton JIT-compiles a small native helper on the first
+# inference request (TRITON_ATTN on V100) and needs a C compiler and Python.h.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python${PYTHON_VERSION} \
+        python${PYTHON_VERSION}-dev \
+        gcc \
+        libnuma1 \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    CUDA_DEVICE_ORDER=PCI_BUS_ID \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+    VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+WORKDIR /workspace
+EXPOSE 8000
+
+# compose.yaml overrides the command; these defaults match the configuration
+# verified on V100 (FP16 + enforce-eager).
+CMD ["vllm", "serve", "Qwen/Qwen2.5-0.5B-Instruct", \
+     "--dtype", "float16", "--enforce-eager", "--max-model-len", "2048"]

@@ -1,0 +1,17 @@
+.git
+.venv
+build/
+.deps/
+bin/
+dist/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+docs/
+tests/
+benchmarks/
+*.tar.gz
+vllm/_version.py
+vllm/**/*.so
