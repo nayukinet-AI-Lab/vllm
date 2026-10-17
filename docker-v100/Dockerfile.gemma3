@@ -1,0 +1,4 @@
+FROM vllm/vllm-openai:v0.7.2
+
+# Gemma 3 サポートを含む最新の transformers (または GitHub master) を導入
+RUN pip install --no-cache-dir --upgrade git+https://github.com/huggingface/transformers.git
