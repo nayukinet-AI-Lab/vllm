@@ -12,10 +12,11 @@ globs: ["**/*"]
 
 ## Repository context
 
-This is a fork of [vllm-project/vllm](https://github.com/vllm-project/vllm) (origin:
-`saitama-AI-Lab/vllm`) with an active branch, `feature/v100-fp16-patch`, that adds
-compatibility for **NVIDIA Tesla V100 (Volta, Compute Capability 7.0)** GPUs. V100 lacks
-hardware BF16 and FlashAttention v1/v2/v3 support, so upstream vLLM crashes on it out of
+This is a fork of [vllm-project/vllm](https://github.com/vllm-project/vllm) (`origin`:
+`nayukinet-AI-Lab/vllm`, the public mirror; `private-origin`: `saitama-AI-Lab/vllm`)
+with an active branch, `feature/v100-fp16-patch` (published on `origin` as
+`for-v100-fp16-patch`), that adds compatibility for **NVIDIA Tesla V100 (Volta,
+Compute Capability 7.0)** GPUs. V100 lacks hardware BF16 and FlashAttention v1/v2/v3 support, so upstream vLLM crashes on it out of
 the box.
 
 V100-specific implementation rules live in the `v100-csrc-adapter` rule; read it before

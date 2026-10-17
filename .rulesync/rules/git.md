@@ -55,8 +55,7 @@ This fork tracks `vllm-project/vllm` through the `upstream` remote. Periodically
 git fetch upstream
 git checkout feature/v100-fp16-patch
 git merge upstream/main -m "Merge upstream/main into feature/v100-fp16-patch"
-git push origin feature/v100-fp16-patch   # or: git push origin HEAD:for-v100-fp16-patch
-                                           # if the remote branch name differs locally
+git push origin HEAD:for-v100-fp16-patch   # the branch is named for-v100-fp16-patch on origin
 ```
 
 - **Always merge, never rebase or squash** this branch against upstream: rebasing would rewrite history that downstream users of this fork may already have based work on, and squashing would bury the V100 commit history that CLAUDE.md explicitly calls out as meaningful (e.g. the typing/`from __future__ import annotations` fixes that keep custom-op schema inference working under PyTorch 2.6).
