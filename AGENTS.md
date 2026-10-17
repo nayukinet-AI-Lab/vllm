@@ -5,10 +5,11 @@
 
 ## Repository context
 
-This is a fork of [vllm-project/vllm](https://github.com/vllm-project/vllm) (origin:
-`saitama-AI-Lab/vllm`) with an active branch, `feature/v100-fp16-patch`, that adds
-compatibility for **NVIDIA Tesla V100 (Volta, Compute Capability 7.0)** GPUs. V100 lacks
-hardware BF16 and FlashAttention v1/v2/v3 support, so upstream vLLM crashes on it out of
+This is a fork of [vllm-project/vllm](https://github.com/vllm-project/vllm) (`origin`:
+`nayukinet-AI-Lab/vllm`, the public mirror; `private-origin`: `saitama-AI-Lab/vllm`)
+with an active branch, `feature/v100-fp16-patch` (published on `origin` as
+`for-v100-fp16-patch`), that adds compatibility for **NVIDIA Tesla V100 (Volta,
+Compute Capability 7.0)** GPUs. V100 lacks hardware BF16 and FlashAttention v1/v2/v3 support, so upstream vLLM crashes on it out of
 the box.
 
 V100-specific implementation rules live in the `v100-csrc-adapter` rule; read it before
@@ -427,8 +428,7 @@ This fork tracks `vllm-project/vllm` through the `upstream` remote. Periodically
 git fetch upstream
 git checkout feature/v100-fp16-patch
 git merge upstream/main -m "Merge upstream/main into feature/v100-fp16-patch"
-git push origin feature/v100-fp16-patch   # or: git push origin HEAD:for-v100-fp16-patch
-                                           # if the remote branch name differs locally
+git push origin HEAD:for-v100-fp16-patch   # the branch is named for-v100-fp16-patch on origin
 ```
 
 - **Always merge, never rebase or squash** this branch against upstream: rebasing would rewrite history that downstream users of this fork may already have based work on, and squashing would bury the V100 commit history that CLAUDE.md explicitly calls out as meaningful (e.g. the typing/`from __future__ import annotations` fixes that keep custom-op schema inference working under PyTorch 2.6).
